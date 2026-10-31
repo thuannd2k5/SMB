@@ -32,3 +32,8 @@ Tài liệu này định nghĩa các quy tắc cốt lõi, tiêu chuẩn kỹ th
 4. **Nghiệp vụ Kho & Dòng tiền**:
    - Không lưu cứng thông số kỹ thuật (specs) thành cột cố định, dùng schema linh hoạt `{ [key: string]: any }` vì đồ gia dụng có thông số biến động theo chủng loại (công suất, kích cỡ, dung tích, chất liệu).
    - Kiểm tra kỹ số lượng tồn kho (không cho phép bán âm kho nếu không bật tính năng cho phép bán nợ).
+
+5. **Quy ước Git Commit (Conventional Commits)**:
+   - Mỗi task hoàn thành BẮT BUỘC phải tạo commit rõ ràng theo định dạng: `feat(scope): mô tả ngắn gọn`.
+   - Ví dụ: `feat(scanner): add client-side barcode scanner with web audio feedback`.
+
