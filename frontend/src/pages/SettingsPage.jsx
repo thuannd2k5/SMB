@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Store,
   Database,
@@ -8,9 +8,33 @@ import {
   Sliders,
   CheckCircle2,
   AlertCircle,
+  Sprout,
+  Loader2,
+  PackageCheck,
+  ArrowRight,
+  Boxes,
 } from 'lucide-react';
+import { seedDemoData } from '../services/api';
 
-export default function SettingsPage({ backendStatus, healthData }) {
+export default function SettingsPage({ backendStatus, healthData, onNavigate }) {
+  const [isSeeding, setIsSeeding] = useState(false);
+  const [seedResult, setSeedResult] = useState(null);
+  const [seedError, setSeedError] = useState(null);
+
+  const handleSeedDemoData = async () => {
+    setIsSeeding(true);
+    setSeedError(null);
+    try {
+      const response = await seedDemoData('store-001');
+      const data = response?.data || response;
+      setSeedResult(data);
+    } catch (err) {
+      console.error('Error seeding demo data:', err);
+      setSeedError(err.message || 'Lỗi khi nạp dữ liệu thử nghiệm');
+    } finally {
+      setIsSeeding(false);
+    }
+  };
   return (
     <div className="space-y-4 pb-20 pt-2">
       {/* Store Profile Section */}
@@ -113,6 +137,78 @@ export default function SettingsPage({ backendStatus, healthData }) {
             </span>
           </div>
         </div>
+      </div>
+
+      {/* Demo Data Seeding Section (Task 4.3) */}
+      <div className="bg-gradient-to-br from-emerald-50 via-teal-50 to-white rounded-2xl p-4 border border-emerald-200/80 shadow-sm space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 text-xs font-bold text-emerald-900 uppercase tracking-wide">
+            <Sprout className="w-4 h-4 text-emerald-600" />
+            <span>Dữ liệu Mẫu Thực tế (Demo Seed)</span>
+          </div>
+          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+            52 Mã Gia Dụng
+          </span>
+        </div>
+
+        <p className="text-xs text-slate-600 leading-relaxed">
+          Tự động nạp bộ 52 sản phẩm gia dụng phổ biến tại Việt Nam (Sunhouse, Lock&Lock, Philips, Senko, Elmich...) chuẩn bị sẵn kịch bản <strong>3 mã đứt hàng critical</strong> để test Zalo Reorder và <strong>2 mã tồn ế &gt; 45 ngày</strong> để test xả hàng.
+        </p>
+
+        {seedError && (
+          <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 text-rose-500 shrink-0" />
+            <span>{seedError}</span>
+          </div>
+        )}
+
+        {seedResult ? (
+          <div className="p-3 rounded-xl bg-emerald-100/70 border border-emerald-300 text-emerald-900 space-y-2">
+            <div className="flex items-center gap-2 font-bold text-xs">
+              <PackageCheck className="w-4 h-4 text-emerald-700" />
+              <span>Đã nạp thành công 52 sản phẩm vào kho hàng!</span>
+            </div>
+            <p className="text-[11px] text-emerald-800">
+              Dữ liệu Master Catalog và Store Inventory đã được đồng bộ đầy đủ. Bạn có thể kiểm tra ngay tại Kho hàng hoặc Dashboard.
+            </p>
+            {onNavigate && (
+              <div className="flex items-center gap-2 pt-1">
+                <button
+                  onClick={() => onNavigate('inventory')}
+                  className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-semibold hover:bg-emerald-700 flex items-center gap-1 shadow-sm"
+                >
+                  <Boxes className="w-3.5 h-3.5" />
+                  <span>Xem Kho hàng</span>
+                  <ArrowRight className="w-3 h-3" />
+                </button>
+                <button
+                  onClick={() => onNavigate('dashboard')}
+                  className="px-3 py-1.5 bg-white text-emerald-700 border border-emerald-300 rounded-lg text-xs font-semibold hover:bg-emerald-50"
+                >
+                  Về Dashboard
+                </button>
+              </div>
+            )}
+          </div>
+        ) : (
+          <button
+            onClick={handleSeedDemoData}
+            disabled={isSeeding || backendStatus !== 'online'}
+            className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-xs font-semibold shadow-md shadow-emerald-200 flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isSeeding ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin text-white" />
+                <span>Đang nạp 52 mã gia dụng vào kho...</span>
+              </>
+            ) : (
+              <>
+                <Sprout className="w-4 h-4 text-emerald-200" />
+                <span>🌱 Nạp 50+ dữ liệu demo</span>
+              </>
+            )}
+          </button>
+        )}
       </div>
 
       {/* Operational Rules (GEMINI.md requirements) */}

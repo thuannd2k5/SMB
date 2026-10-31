@@ -80,3 +80,9 @@ export const regenerateCustomReorderPrompt = async (payload) => {
 export const sendVoiceQuery = async (query) => {
   return await apiClient.post('/ai/voice-query', { query });
 };
+
+export const seedDemoData = async (storeId = 'store-001') => {
+  return await apiClient.post('/inventory/seed-demo-data', null, {
+    params: { storeId },
+  });
+};

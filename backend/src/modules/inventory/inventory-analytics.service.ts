@@ -7,6 +7,7 @@ import {
 } from './schemas/store-inventory.schema';
 import { CatalogService } from '../catalog/catalog.service';
 import { GeminiService } from '../ai/gemini.service';
+import { DEMO_HOUSEHOLD_PRODUCTS } from './seed/demo-products.data';
 
 export interface AbcItem {
   inventoryId: string;
@@ -379,128 +380,15 @@ export class InventoryAnalyticsService {
   }
 
   /**
-   * Khởi tạo bộ dữ liệu mẫu thực tế chuẩn SMB đồ gia dụng nếu cơ sở dữ liệu còn trống
+   * Khởi tạo bộ dữ liệu mẫu thực tế chuẩn SMB đồ gia dụng (50+ sản phẩm) nếu cơ sở dữ liệu còn trống
    */
   private async seedRealisticInventory(storeId: string) {
-    this.logger.log(`Seeding realistic SMB household products for store [${storeId}]...`);
+    this.logger.log(`Seeding ${DEMO_HOUSEHOLD_PRODUCTS.length} realistic SMB household products for store [${storeId}]...`);
 
     const now = Date.now();
-    const demoCatalog = [
-      {
-        barcode: '8935212345678',
-        name: 'Chảo chống dính Sunhouse 26cm',
-        brand: 'Sunhouse',
-        category: 'Thiết bị nhà bếp',
-        unit: 'Cái',
-        specs: { size: '26cm', material: 'Hợp kim nhôm chống dính' },
-        costPrice: 120000,
-        retailPrice: 175000,
-        stockQuantity: 2,
-        minStockAlert: 5,
-        leadTimeDays: 2,
-        lastSoldAt: new Date(now - 1 * 86400000), // Bán 1 ngày trước
-        shelfLocation: 'Kệ A1',
-        supplierName: 'NPP Sunhouse Miền Bắc',
-      },
-      {
-        barcode: '8936037482910',
-        name: 'Bộ 3 nồi Inox 3 đáy Fivestar nắp kính',
-        brand: 'Fivestar',
-        category: 'Thiết bị nhà bếp',
-        unit: 'Bộ',
-        specs: { size: '16-20-24cm', material: 'Inox 430 3 đáy' },
-        costPrice: 450000,
-        retailPrice: 620000,
-        stockQuantity: 8,
-        minStockAlert: 5,
-        leadTimeDays: 2,
-        lastSoldAt: new Date(now - 2 * 86400000),
-        shelfLocation: 'Kệ B2',
-        supplierName: 'NPP Đồ Gia Dụng Tân Bình',
-      },
-      {
-        barcode: '8935006543210',
-        name: 'Nồi chiên không dầu Lock&Lock 5.2L EJF357BLK',
-        brand: 'Lock&Lock',
-        category: 'Thiết bị nhà bếp',
-        unit: 'Cái',
-        specs: { capacity: '5.2L', power: '1800W' },
-        costPrice: 1350000,
-        retailPrice: 1850000,
-        stockQuantity: 5,
-        minStockAlert: 3,
-        leadTimeDays: 3,
-        lastSoldAt: new Date(now - 1 * 86400000),
-        shelfLocation: 'Kệ A3',
-        supplierName: 'Lock&Lock Official Distributor',
-      },
-      {
-        barcode: '8935123456789',
-        name: 'Ấm siêu tốc Inox Sunhouse 1.8L SHD1182',
-        brand: 'Sunhouse',
-        category: 'Thiết bị nhà bếp',
-        unit: 'Cái',
-        specs: { capacity: '1.8L', power: '1500W' },
-        costPrice: 110000,
-        retailPrice: 165000,
-        stockQuantity: 12,
-        minStockAlert: 5,
-        leadTimeDays: 2,
-        lastSoldAt: new Date(now - 3 * 86400000),
-        shelfLocation: 'Kệ C1',
-        supplierName: 'NPP Sunhouse Miền Bắc',
-      },
-      {
-        barcode: '8886328901234',
-        name: 'Máy sấy tóc Panasonic 1800W ND21',
-        brand: 'Panasonic',
-        category: 'Chăm sóc cá nhân',
-        unit: 'Cái',
-        specs: { power: '1800W', speed: '3 chế độ gió' },
-        costPrice: 240000,
-        retailPrice: 340000,
-        stockQuantity: 9,
-        minStockAlert: 4,
-        leadTimeDays: 2,
-        lastSoldAt: new Date(now - 5 * 86400000),
-        shelfLocation: 'Kệ B1',
-        supplierName: 'Điện máy Panasonic VN',
-      },
-      {
-        barcode: '8934567890123',
-        name: 'Bình giữ nhiệt inox mẫu cũ 500ml',
-        brand: 'Khác',
-        category: 'Gia dụng tiện ích',
-        unit: 'Cái',
-        specs: { capacity: '500ml', material: 'Inox 201' },
-        costPrice: 115000,
-        retailPrice: 160000,
-        stockQuantity: 18,
-        minStockAlert: 5,
-        leadTimeDays: 2,
-        lastSoldAt: new Date(now - 48 * 86400000), // 48 ngày chưa bán (Dead stock)
-        shelfLocation: 'Kệ D3',
-        supplierName: 'Tổng kho Gia dụng Miền Nam',
-      },
-      {
-        barcode: '8936012345678',
-        name: 'Bộ dao làm bếp 5 món thép không gỉ',
-        brand: 'Khác',
-        category: 'Thiết bị nhà bếp',
-        unit: 'Bộ',
-        specs: { quantity: '5 món', material: 'Thép không gỉ' },
-        costPrice: 145000,
-        retailPrice: 210000,
-        stockQuantity: 6,
-        minStockAlert: 3,
-        leadTimeDays: 2,
-        lastSoldAt: new Date(now - 15 * 86400000),
-        shelfLocation: 'Kệ C2',
-        supplierName: 'Tổng kho Gia dụng Miền Nam',
-      },
-    ];
+    const dayMs = 86400000;
 
-    for (const item of demoCatalog) {
+    for (const item of DEMO_HOUSEHOLD_PRODUCTS) {
       try {
         const cat = await this.catalogService.upsertProduct(
           {
@@ -510,8 +398,8 @@ export class InventoryAnalyticsService {
             category: item.category,
             unit: item.unit,
             specs: item.specs,
-            suggestedRetailPriceMin: item.costPrice * 1.25,
-            suggestedRetailPriceMax: item.retailPrice * 1.1,
+            suggestedRetailPriceMin: Math.round((item.costPrice * 1.15) / 1000) * 1000,
+            suggestedRetailPriceMax: Math.round((item.retailPrice * 1.05) / 1000) * 1000,
           },
           'SYSTEM_CACHE',
         );
@@ -521,6 +409,9 @@ export class InventoryAnalyticsService {
             storeId,
             catalogId: cat._id,
           });
+
+          const lastSoldDaysAgo = item.lastSoldDaysAgo ?? 2;
+          const lastSoldAt = new Date(now - lastSoldDaysAgo * dayMs);
 
           if (!existing) {
             await this.inventoryModel.create({
@@ -532,8 +423,9 @@ export class InventoryAnalyticsService {
               shelfLocation: item.shelfLocation,
               minStockAlert: item.minStockAlert,
               leadTimeDays: item.leadTimeDays,
-              lastSoldAt: item.lastSoldAt,
+              lastSoldAt,
               supplierName: item.supplierName,
+              supplierPhone: item.supplierPhone,
             });
           }
         }

@@ -70,4 +70,9 @@ export class InventoryController {
   adjustStock(@Body() dto: AdjustStockDto) {
     return this.inventoryService.adjustStock(dto);
   }
+
+  @Post('seed-demo-data')
+  seedDemoData(@Query('storeId') storeId?: string) {
+    return this.inventoryService.seedDemoData(storeId || 'store-001');
+  }
 }

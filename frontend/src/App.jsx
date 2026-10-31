@@ -63,6 +63,7 @@ export default function App() {
           <SettingsPage
             backendStatus={backendStatus}
             healthData={healthData}
+            onNavigate={setActiveTab}
           />
         );
       default:

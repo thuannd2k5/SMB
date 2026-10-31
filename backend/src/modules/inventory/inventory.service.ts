@@ -11,6 +11,8 @@ import {
   StoreInventoryDocument,
 } from './schemas/store-inventory.schema';
 import { CatalogService } from '../catalog/catalog.service';
+import { CatalogSource } from '../catalog/schemas/master-catalog.schema';
+import { DEMO_HOUSEHOLD_PRODUCTS } from './seed/demo-products.data';
 import { InboundInventoryDto } from './dto/inbound-inventory.dto';
 import { AdjustStockDto } from './dto/adjust-stock.dto';
 
@@ -507,6 +509,120 @@ export class InventoryService {
       lowStockAlerts,
       estimatedInventoryValue,
       turnoverRate: totalProducts > 0 ? '78%' : '0%',
+    };
+  }
+
+  /**
+   * Seed 50+ sản phẩm đồ gia dụng thực tế cho SMB
+   */
+  async seedDemoData(storeId: string = 'store-001') {
+    this.logger.log(`[SeedDemoData] Seeding ${DEMO_HOUSEHOLD_PRODUCTS.length} household products for store [${storeId}]...`);
+    const seededList: any[] = [];
+    const now = Date.now();
+    const dayMs = 86400000;
+
+    for (const item of DEMO_HOUSEHOLD_PRODUCTS) {
+      // 1. Tầng 1: Master Catalog cache
+      const catalogItem = await this.catalogService.upsertProduct(
+        {
+          barcode: item.barcode,
+          name: item.name,
+          brand: item.brand,
+          category: item.category,
+          unit: item.unit,
+          specs: item.specs,
+          suggestedRetailPriceMin: Math.round((item.costPrice * 1.15) / 1000) * 1000,
+          suggestedRetailPriceMax: Math.round((item.retailPrice * 1.05) / 1000) * 1000,
+        },
+        CatalogSource.SYSTEM_CACHE,
+      );
+
+      const catalogId = catalogItem._id || new Types.ObjectId();
+      const compositeKey = `${storeId}_${item.barcode}`;
+
+      const lastSoldDaysAgo = item.lastSoldDaysAgo ?? 2;
+      const lastSoldAt = new Date(now - lastSoldDaysAgo * dayMs);
+
+      let savedDoc: any = null;
+
+      // 2. Tầng 2: Store Inventory MongoDB
+      if (this.inventoryModel.db?.readyState === 1) {
+        try {
+          savedDoc = await this.inventoryModel
+            .findOneAndUpdate(
+              {
+                storeId,
+                $or: [
+                  { catalogId: Types.ObjectId.isValid(catalogId) ? catalogId : new Types.ObjectId() },
+                  { _id: Types.ObjectId.isValid(catalogId) ? catalogId : undefined },
+                ],
+              },
+              {
+                $set: {
+                  storeId,
+                  catalogId: Types.ObjectId.isValid(catalogId) ? catalogId : new Types.ObjectId(),
+                  stockQuantity: item.stockQuantity,
+                  costPrice: item.costPrice,
+                  retailPrice: item.retailPrice,
+                  shelfLocation: item.shelfLocation,
+                  minStockAlert: item.minStockAlert,
+                  leadTimeDays: item.leadTimeDays,
+                  supplierName: item.supplierName,
+                  supplierPhone: item.supplierPhone,
+                  lastSoldAt,
+                },
+              },
+              { upsert: true, new: true, setDefaultsOnInsert: true },
+            )
+            .lean()
+            .exec();
+        } catch (err: any) {
+          this.logger.warn(`MongoDB seed notice for [${item.barcode}]: ${err.message}`);
+        }
+      }
+
+      // 3. Đồng bộ in-memory cache
+      const memoryRecord = {
+        _id: savedDoc?._id?.toString() || `inv_seed_${item.barcode}`,
+        storeId,
+        catalogId,
+        catalog: catalogItem,
+        barcode: item.barcode,
+        name: item.name,
+        brand: item.brand,
+        category: item.category,
+        unit: item.unit,
+        specs: item.specs,
+        stockQuantity: item.stockQuantity,
+        costPrice: item.costPrice,
+        retailPrice: item.retailPrice,
+        shelfLocation: item.shelfLocation,
+        minStockAlert: item.minStockAlert,
+        leadTimeDays: item.leadTimeDays,
+        supplierName: item.supplierName,
+        supplierPhone: item.supplierPhone,
+        lastSoldAt,
+        updatedAt: new Date(),
+      };
+      this.localInventories.set(compositeKey, memoryRecord);
+      seededList.push(memoryRecord);
+    }
+
+    this.logger.log(`[SeedDemoData] Successfully seeded ${seededList.length} items.`);
+
+    return {
+      success: true,
+      data: {
+        totalSeeded: seededList.length,
+        sampleItems: seededList.slice(0, 5).map((s) => ({
+          barcode: s.barcode,
+          name: s.name,
+          category: s.category,
+          stockQuantity: s.stockQuantity,
+          retailPrice: s.retailPrice,
+        })),
+      },
+      message: `Đã nạp thành công ${seededList.length} sản phẩm gia dụng thực tế vào kho hàng!`,
     };
   }
 }
