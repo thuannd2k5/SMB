@@ -76,3 +76,7 @@ export const getReorderDrafts = async (storeId = 'store-001') => {
 export const regenerateCustomReorderPrompt = async (payload) => {
   return await apiClient.post('/inventory/reorder/custom-prompt', payload);
 };
+
+export const sendVoiceQuery = async (query) => {
+  return await apiClient.post('/ai/voice-query', { query });
+};

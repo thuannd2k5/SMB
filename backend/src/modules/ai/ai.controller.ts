@@ -1,16 +1,30 @@
 import { Controller, Post, Body, Get } from '@nestjs/common';
 import { AiService } from './ai.service';
+import { VoiceBiService } from './voice-bi.service';
 import { RetrieveBarcodeDto } from './dto/retrieve-barcode.dto';
 import { VisionOcrDto } from './dto/vision-ocr.dto';
 import { SmartPricingDto } from './dto/smart-pricing.dto';
+import { VoiceQueryDto } from './dto/voice-query.dto';
 
 @Controller('ai')
 export class AiController {
-  constructor(private readonly aiService: AiService) {}
+  constructor(
+    private readonly aiService: AiService,
+    private readonly voiceBiService: VoiceBiService,
+  ) {}
 
   @Get('status')
   getStatus() {
     return this.aiService.getStatus();
+  }
+
+  @Post('voice-query')
+  async voiceQuery(@Body() dto: VoiceQueryDto) {
+    const result = await this.voiceBiService.processVoiceQuery(dto.query);
+    return {
+      success: true,
+      data: result,
+    };
   }
 
   @Post('retrieve-barcode')

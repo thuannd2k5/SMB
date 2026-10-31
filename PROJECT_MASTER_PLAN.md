@@ -43,6 +43,6 @@
 - [x] **Task 3.3**: Supplier Re-ordering Agent: Tự động gom đơn hàng thiếu, nhóm theo Nhà Phân Phối và sinh mẫu tin nhắn Zalo/SMS 1 chạm.
 
 #### PHA 4: HỎI ĐÁP GIỌNG NÓI (VOICE BI), TEST & PACKAGING (Tuần 11 - 14)
-- [ ] **Task 4.1**: Conversational BI: Voice Assistant (Web Speech API -> Gemini Function Calling truy vấn doanh thu, tồn kho theo ngôn ngữ tự nhiên).
+- [x] **Task 4.1**: Conversational BI: Voice Assistant (Web Speech API -> Gemini Function Calling truy vấn doanh thu, tồn kho theo ngôn ngữ tự nhiên).
 - [ ] **Task 4.2**: Tối ưu hiệu năng, Caching Master Catalog, Service Worker PWA Offline mode.
 - [ ] **Task 4.3**: Pilot Testing & Demo hoàn chỉnh với bộ 50+ mã sản phẩm gia dụng thực tế.

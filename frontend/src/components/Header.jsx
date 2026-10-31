@@ -1,7 +1,7 @@
 import React from 'react';
-import { Store, Wifi, WifiOff, RefreshCw } from 'lucide-react';
+import { Store, Wifi, WifiOff, RefreshCw, Mic } from 'lucide-react';
 
-export default function Header({ backendStatus, onRefreshStatus, isChecking }) {
+export default function Header({ backendStatus, onRefreshStatus, isChecking, onOpenVoiceModal }) {
   const getStatusBadge = () => {
     if (isChecking) {
       return (
@@ -57,6 +57,13 @@ export default function Header({ backendStatus, onRefreshStatus, isChecking }) {
         </div>
 
         <div className="flex items-center gap-2">
+          <button
+            onClick={onOpenVoiceModal}
+            className="w-8 h-8 rounded-xl bg-purple-50 hover:bg-purple-100 active:scale-95 text-purple-600 border border-purple-200 flex items-center justify-center transition-all shadow-2xs"
+            title="Trợ lý hỏi đáp giọng nói (Voice BI)"
+          >
+            <Mic className="w-4 h-4" />
+          </button>
           {getStatusBadge()}
         </div>
       </div>
