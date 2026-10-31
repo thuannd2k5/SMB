@@ -6,12 +6,16 @@ import {
   Query,
 } from '@nestjs/common';
 import { InventoryService } from './inventory.service';
+import { InventoryAnalyticsService } from './inventory-analytics.service';
 import { InboundInventoryDto } from './dto/inbound-inventory.dto';
 import { AdjustStockDto } from './dto/adjust-stock.dto';
 
 @Controller('inventory')
 export class InventoryController {
-  constructor(private readonly inventoryService: InventoryService) {}
+  constructor(
+    private readonly inventoryService: InventoryService,
+    private readonly inventoryAnalyticsService: InventoryAnalyticsService,
+  ) {}
 
   @Get('items')
   getItems(
@@ -19,6 +23,8 @@ export class InventoryController {
     @Query('shelf') shelf?: string,
     @Query('category') category?: string,
     @Query('lowStockOnly') lowStockOnly?: string,
+    @Query('needRestockOnly') needRestockOnly?: string,
+    @Query('deadStockOnly') deadStockOnly?: string,
     @Query('storeId') storeId?: string,
   ) {
     return this.inventoryService.getItems({
@@ -26,6 +32,8 @@ export class InventoryController {
       shelf,
       category,
       lowStockOnly,
+      needRestockOnly,
+      deadStockOnly,
       storeId,
     });
   }
@@ -33,6 +41,11 @@ export class InventoryController {
   @Get('overview')
   getOverview(@Query('storeId') storeId?: string) {
     return this.inventoryService.getOverview(storeId || 'store-001');
+  }
+
+  @Get('analytics/health')
+  getInventoryHealth(@Query('storeId') storeId?: string) {
+    return this.inventoryAnalyticsService.getInventoryHealth(storeId || 'store-001');
   }
 
   @Post('inbound')

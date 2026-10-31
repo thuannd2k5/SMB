@@ -280,4 +280,54 @@ Hãy đưa ra 1-2 câu nhận định ngắn gọn, súc tích (dưới 40 từ)
       return fallbackInsight;
     }
   }
+
+  /**
+   * Sinh chiến lược xả hàng đọng vốn (Dead Stock Liquidation) bằng Gemini Flash
+   */
+  async generateLiquidationStrategy(params: {
+    productName: string;
+    stockQuantity: number;
+    daysInactive: number;
+    costPrice: number;
+    tiedUpCapital: number;
+    leadProductName?: string;
+  }): Promise<string> {
+    const {
+      productName,
+      stockQuantity,
+      daysInactive,
+      tiedUpCapital,
+      leadProductName,
+    } = params;
+    const capitalMillion = (tiedUpCapital / 1000000).toFixed(2);
+    const bundleProduct = leadProductName || 'Sản phẩm bán chạy';
+
+    const fallback = `${productName} còn tồn ${stockQuantity} cái, đã ${daysInactive} ngày chưa bán được chiếc nào. Gợi ý: Bán kèm ${bundleProduct} giảm giá 15-20% hoặc thanh lý thu hồi vốn ${capitalMillion} triệu đồng.`;
+
+    if (!this.ai) {
+      return fallback;
+    }
+
+    try {
+      const prompt = `Bạn là chuyên gia tư vấn quản trị hàng tồn kho và dòng tiền cho các tiệm gia dụng SMB Việt Nam.
+Sản phẩm đọng vốn: "${productName}"
+Số lượng tồn kho: ${stockQuantity} cái
+Số ngày chưa bán được chiếc nào: ${daysInactive} ngày
+Tổng tiền vốn đang bị giam: ${tiedUpCapital.toLocaleString('vi-VN')} VNĐ (${capitalMillion} triệu đồng)
+Sản phẩm chủ lực bán chạy hiện tại: "${bundleProduct}"
+
+Hãy đưa ra 1 gợi ý xả hàng thu hồi vốn ngắn gọn trong 1-2 câu (dưới 45 từ) cho chủ tiệm: Gợi ý bán kèm combo với ${bundleProduct} giảm 15-20% hoặc thanh lý giá vốn để giải phóng mặt bằng và thu hồi ${capitalMillion} triệu đồng tiền vốn. Không dùng gạch đầu dòng, trả về văn bản thuần.`;
+
+      const response = await this.ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: prompt,
+      });
+
+      const text = response.text ? response.text.trim() : '';
+      return text.length > 10 ? text : fallback;
+    } catch (err: any) {
+      this.logger.warn(`Failed to generate Gemini liquidation strategy: ${err.message}`);
+      return fallback;
+    }
+  }
 }

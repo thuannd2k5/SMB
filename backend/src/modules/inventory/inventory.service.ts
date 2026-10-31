@@ -30,6 +30,11 @@ export interface FormattedInventoryItem {
   lastSoldAt: Date | null;
   supplierName?: string;
   supplierPhone?: string;
+  abcGroup?: 'A' | 'B' | 'C';
+  runoutDays?: number;
+  urgency?: 'CRITICAL' | 'WARNING' | 'SAFE';
+  daysInactive?: number;
+  isDeadStock?: boolean;
 }
 
 @Injectable()
@@ -152,6 +157,8 @@ export class InventoryService {
     shelf?: string;
     category?: string;
     lowStockOnly?: boolean | string;
+    needRestockOnly?: boolean | string;
+    deadStockOnly?: boolean | string;
     storeId?: string;
   }): Promise<FormattedInventoryItem[]> {
     const storeId = query.storeId || 'store-001';
@@ -188,6 +195,7 @@ export class InventoryService {
               retailPrice: doc.retailPrice,
               shelfLocation: doc.shelfLocation,
               minStockAlert: doc.minStockAlert ?? 5,
+              leadTimeDays: doc.leadTimeDays || 2,
               lastSoldAt: doc.lastSoldAt || null,
               supplierName: doc.supplierName || '',
               supplierPhone: doc.supplierPhone || '',
@@ -218,6 +226,7 @@ export class InventoryService {
             retailPrice: item.retailPrice,
             shelfLocation: item.shelfLocation,
             minStockAlert: item.minStockAlert ?? 5,
+            leadTimeDays: item.leadTimeDays || 2,
             lastSoldAt: item.lastSoldAt || null,
             supplierName: item.supplierName || '',
             supplierPhone: item.supplierPhone || '',
@@ -225,8 +234,94 @@ export class InventoryService {
         });
     }
 
-    // 3. Áp dụng các bộ lọc nghiệp vụ
-    let filtered = rawItems;
+    // 3. Tính toán vận tốc bán, ngày đọng vốn, cảnh báo đứt hàng & phân loại Pareto ABC
+    const now = Date.now();
+    const enriched = rawItems.map((item) => {
+      let daysInactive = 10;
+      if (item.lastSoldAt) {
+        daysInactive = Math.max(0, Math.floor((now - new Date(item.lastSoldAt).getTime()) / 86400000));
+      }
+
+      let dailySales = 1.0;
+      if (daysInactive >= 45) {
+        dailySales = 0;
+      } else if (daysInactive <= 2) {
+        dailySales = item.stockQuantity <= 3 ? 1.5 : 2.0;
+      } else if (daysInactive <= 7) {
+        dailySales = 1.2;
+      }
+
+      let runoutDays = 99;
+      if (item.stockQuantity === 0) {
+        runoutDays = 0;
+      } else if (dailySales > 0) {
+        runoutDays = Math.round(item.stockQuantity / dailySales);
+      }
+
+      let urgency: 'CRITICAL' | 'WARNING' | 'SAFE' = 'SAFE';
+      if (item.stockQuantity === 0 || runoutDays <= (item.leadTimeDays || 2) + 1 || item.stockQuantity <= 2) {
+        urgency = 'CRITICAL';
+      } else if (runoutDays <= 7 || item.stockQuantity <= item.minStockAlert) {
+        urgency = 'WARNING';
+      }
+
+      const isDeadStock = daysInactive >= 45 && item.stockQuantity > 0;
+      const monthlyRevenue = item.retailPrice * (dailySales > 0 ? Math.round(dailySales * 30) : 1);
+
+      return {
+        ...item,
+        daysInactive,
+        dailySales,
+        runoutDays,
+        urgency,
+        isDeadStock,
+        monthlyRevenue,
+      };
+    });
+
+    // Tính toán phân bổ ABC
+    const sortedByRevenue = [...enriched].sort((a, b) => b.monthlyRevenue - a.monthlyRevenue);
+    const totalRev = sortedByRevenue.reduce((s, i) => s + i.monthlyRevenue, 0);
+
+    let acc = 0;
+    const abcMap = new Map<string, 'A' | 'B' | 'C'>();
+    sortedByRevenue.forEach((it, idx) => {
+      acc += it.monthlyRevenue;
+      const pct = totalRev > 0 ? (acc / totalRev) * 100 : 0;
+      if (idx === 0 || pct <= 80) {
+        abcMap.set(it._id, 'A');
+      } else if (pct <= 95) {
+        abcMap.set(it._id, 'B');
+      } else {
+        abcMap.set(it._id, 'C');
+      }
+    });
+
+    let withAbc: FormattedInventoryItem[] = enriched.map((item) => ({
+      _id: item._id,
+      barcode: item.barcode,
+      name: item.name,
+      brand: item.brand,
+      category: item.category,
+      unit: item.unit,
+      specs: item.specs,
+      stockQuantity: item.stockQuantity,
+      costPrice: item.costPrice,
+      retailPrice: item.retailPrice,
+      shelfLocation: item.shelfLocation,
+      minStockAlert: item.minStockAlert,
+      lastSoldAt: item.lastSoldAt,
+      supplierName: item.supplierName,
+      supplierPhone: item.supplierPhone,
+      abcGroup: abcMap.get(item._id) || 'C',
+      runoutDays: item.runoutDays,
+      urgency: item.urgency,
+      daysInactive: item.daysInactive,
+      isDeadStock: item.isDeadStock,
+    }));
+
+    // 4. Áp dụng các bộ lọc nghiệp vụ
+    let filtered = withAbc;
 
     // Lọc theo từ khóa tìm kiếm (Tên sản phẩm hoặc Barcode)
     if (query.search && query.search.trim()) {
@@ -254,6 +349,24 @@ export class InventoryService {
       query.lowStockOnly === true || query.lowStockOnly === 'true';
     if (isLowStock) {
       filtered = filtered.filter((i) => i.stockQuantity <= i.minStockAlert);
+    }
+
+    // Lọc "Cần nhập gấp" (urgency === 'CRITICAL' hoặc runoutDays <= 3)
+    const isNeedRestock =
+      query.needRestockOnly === true || query.needRestockOnly === 'true';
+    if (isNeedRestock) {
+      filtered = filtered.filter(
+        (i) => i.urgency === 'CRITICAL' || (i.runoutDays !== undefined && i.runoutDays <= 3) || i.stockQuantity <= i.minStockAlert,
+      );
+    }
+
+    // Lọc "Hàng đọng vốn" (isDeadStock hoặc daysInactive >= 45)
+    const isDeadStock =
+      query.deadStockOnly === true || query.deadStockOnly === 'true';
+    if (isDeadStock) {
+      filtered = filtered.filter(
+        (i) => i.isDeadStock === true || (i.daysInactive !== undefined && i.daysInactive >= 45 && i.stockQuantity > 0),
+      );
     }
 
     return filtered;

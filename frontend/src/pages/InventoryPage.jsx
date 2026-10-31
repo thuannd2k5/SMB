@@ -57,6 +57,10 @@ export default function InventoryPage({ onNavigate }) {
       }
       if (activeFilter === 'lowStock') {
         params.lowStockOnly = true;
+      } else if (activeFilter === 'needRestock') {
+        params.needRestockOnly = true;
+      } else if (activeFilter === 'deadStock') {
+        params.deadStockOnly = true;
       } else if (activeFilter.startsWith('shelf:')) {
         params.shelf = activeFilter.replace('shelf:', '');
       }
@@ -301,15 +305,39 @@ export default function InventoryPage({ onNavigate }) {
 
           <button
             type="button"
-            onClick={() => setActiveFilter('lowStock')}
+            onClick={() => setActiveFilter('needRestock')}
             className={`px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap transition-all flex items-center gap-1 ${
-              activeFilter === 'lowStock'
+              activeFilter === 'needRestock'
                 ? 'bg-rose-600 text-white shadow-xs'
                 : 'bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200'
             }`}
           >
-            <AlertTriangle className="w-3 h-3" />
-            <span>Sắp hết hàng ({lowStockCount})</span>
+            <span>🚨 Cần nhập gấp</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveFilter('deadStock')}
+            className={`px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap transition-all flex items-center gap-1 ${
+              activeFilter === 'deadStock'
+                ? 'bg-amber-600 text-white shadow-xs'
+                : 'bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200'
+            }`}
+          >
+            <span>⏳ Hàng đọng vốn</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveFilter('lowStock')}
+            className={`px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap transition-all flex items-center gap-1 ${
+              activeFilter === 'lowStock'
+                ? 'bg-slate-800 text-white shadow-xs'
+                : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200'
+            }`}
+          >
+            <AlertTriangle className="w-3 h-3 text-amber-500" />
+            <span>Tồn kho &le; 5 ({lowStockCount})</span>
           </button>
 
           {availableShelves.map((shelf) => (
@@ -387,9 +415,38 @@ export default function InventoryPage({ onNavigate }) {
                   {/* Row 1: Name & Badges */}
                   <div className="flex items-start justify-between gap-2">
                     <h3 className="text-xs font-bold text-slate-900 leading-snug line-clamp-2 flex-1">
-                      {item.name}
+                      {/* ABC Pareto Group Badge */}
+                      <span
+                        className={`text-[10px] font-extrabold px-1.5 py-0.5 rounded mr-1.5 inline-block shrink-0 ${
+                          item.abcGroup === 'A'
+                            ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                            : item.abcGroup === 'B'
+                            ? 'bg-emerald-100 text-emerald-900 border border-emerald-300'
+                            : 'bg-slate-100 text-slate-800 border border-slate-300'
+                        }`}
+                        title={`Nhóm ${item.abcGroup || 'C'}: ${
+                          item.abcGroup === 'A'
+                            ? 'Chủ lực 80% doanh thu'
+                            : item.abcGroup === 'B'
+                            ? 'Thứ cấp 15% doanh thu'
+                            : 'Đuôi dài 5% doanh thu'
+                        }`}
+                      >
+                        [{item.abcGroup || 'C'}]
+                      </span>
+                      <span>{item.name}</span>
                     </h3>
-                    <div className="flex items-center gap-1 shrink-0">
+                    <div className="flex items-center gap-1 shrink-0 flex-wrap justify-end">
+                      {item.urgency === 'CRITICAL' && (
+                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-rose-100 text-rose-800 border border-rose-300 animate-pulse">
+                          {item.runoutDays === 0 ? 'Hết hàng' : `Còn ${item.runoutDays}d`}
+                        </span>
+                      )}
+                      {item.isDeadStock && (
+                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-300">
+                          Đọng {item.daysInactive}d
+                        </span>
+                      )}
                       <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200">
                         <MapPin className="w-2.5 h-2.5" />
                         <span>{item.shelfLocation || 'Kệ A1'}</span>

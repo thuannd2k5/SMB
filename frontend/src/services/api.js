@@ -60,3 +60,9 @@ export const processVisionOcr = async (payload) => {
 export const getSmartPricing = async (pricingData) => {
   return await apiClient.post('/ai/smart-pricing', pricingData);
 };
+
+export const getInventoryHealth = async (storeId = 'store-001') => {
+  return await apiClient.get('/inventory/analytics/health', {
+    params: { storeId },
+  });
+};
