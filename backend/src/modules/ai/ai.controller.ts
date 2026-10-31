@@ -1,6 +1,7 @@
 import { Controller, Post, Body, Get } from '@nestjs/common';
 import { AiService } from './ai.service';
 import { RetrieveBarcodeDto } from './dto/retrieve-barcode.dto';
+import { VisionOcrDto } from './dto/vision-ocr.dto';
 
 @Controller('ai')
 export class AiController {
@@ -14,6 +15,18 @@ export class AiController {
   @Post('retrieve-barcode')
   async retrieveBarcode(@Body() dto: RetrieveBarcodeDto) {
     const productData = await this.aiService.retrieveBarcode(dto.barcode);
+    return {
+      success: true,
+      data: productData,
+    };
+  }
+
+  @Post('vision-ocr')
+  async visionOcr(@Body() dto: VisionOcrDto) {
+    const productData = await this.aiService.processVisionOcr(
+      dto.image,
+      dto.mimeType || 'image/jpeg',
+    );
     return {
       success: true,
       data: productData,

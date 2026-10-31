@@ -52,3 +52,7 @@ export const getInventoryItems = async (params = {}) => {
 export const adjustStock = async (adjustmentData) => {
   return await apiClient.post('/inventory/adjust-stock', adjustmentData);
 };
+
+export const processVisionOcr = async (payload) => {
+  return await apiClient.post('/ai/vision-ocr', payload);
+};

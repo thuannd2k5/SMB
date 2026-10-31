@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { GoogleGenAI, Type } from '@google/genai';
 
 export interface ExtractedProduct {
+  barcode?: string;
   name: string;
   brand?: string;
   category: string;
@@ -130,5 +131,103 @@ Hãy bóc tách thành thông tin sản phẩm chuẩn mực, có thương hiệ
 
     const responseText = response.text ? response.text.trim() : '{}';
     return JSON.parse(responseText) as ExtractedProduct;
+  }
+
+  /**
+   * Multimodal Vision OCR: Đọc ảnh chụp bao bì/mặt trước sản phẩm gia dụng
+   */
+  async extractFromProductImage(
+    imageBase64: string,
+    mimeType: string = 'image/jpeg',
+  ): Promise<ExtractedProduct> {
+    if (!this.ai) {
+      throw new Error('Gemini SDK is not configured with a valid API key');
+    }
+
+    // Strip header prefix if data URI format
+    const cleanBase64 = imageBase64.replace(/^data:image\/[a-z]+;base64,/, '');
+
+    const prompt = `Bạn là chuyên gia phân tích hàng gia dụng SMB Việt Nam.
+Hãy đọc toàn bộ nhãn mác OCR, logo thương hiệu, tên gọi và thông số kỹ thuật (công suất, kích thước, dung tích, chất liệu) trên bao bì/mặt trước sản phẩm này và trích xuất thành JSON chuẩn.
+Nếu trên bao bì có in mã vạch (dãy số barcode), hãy đọc chính xác vào trường "barcode". Nếu không tìm thấy mã vạch, hãy để trống trường barcode.`;
+
+    const response = await this.ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: [
+        {
+          inlineData: {
+            data: cleanBase64,
+            mimeType: mimeType || 'image/jpeg',
+          },
+        },
+        prompt,
+      ],
+      config: {
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            barcode: {
+              type: Type.STRING,
+              description: 'Mã vạch số nếu đọc được trên bao bì, hoặc để trống',
+            },
+            name: {
+              type: Type.STRING,
+              description: 'Tên sản phẩm chuẩn mực, có thương hiệu và quy cách',
+            },
+            brand: {
+              type: Type.STRING,
+              description:
+                'Tên thương hiệu (ví dụ: Fivestar, Sunhouse, Lock&Lock, Elmich, Philips...)',
+            },
+            category: {
+              type: Type.STRING,
+              enum: [
+                'Thiết bị nhà bếp',
+                'Điện gia dụng',
+                'Thiết bị vệ sinh',
+                'Đồ dùng phòng khách',
+                'Khác',
+              ],
+              description: 'Phân loại ngành hàng gia dụng',
+            },
+            unit: {
+              type: Type.STRING,
+              enum: ['Bộ', 'Chiếc', 'Cái', 'Hộp', 'Bình'],
+              description: 'Đơn vị tính cơ sở',
+            },
+            specs: {
+              type: Type.OBJECT,
+              description: 'Các thông số kỹ thuật dạng key-value linh hoạt',
+              properties: {
+                power: { type: Type.STRING, description: 'Công suất (ví dụ: 1800W)' },
+                capacity: { type: Type.STRING, description: 'Dung tích (ví dụ: 1.8L)' },
+                material: { type: Type.STRING, description: 'Chất liệu (ví dụ: Inox 430, Nhôm chống dính, Thủy tinh)' },
+                size: { type: Type.STRING, description: 'Kích cỡ hoặc đường kính (ví dụ: 16-20-24cm)' },
+              },
+            },
+            suggestedRetailPriceMin: {
+              type: Type.NUMBER,
+              description: 'Giá bán lẻ tối thiểu ước tính (VNĐ)',
+            },
+            suggestedRetailPriceMax: {
+              type: Type.NUMBER,
+              description: 'Giá bán lẻ tối đa ước tính (VNĐ)',
+            },
+          },
+          required: ['name', 'category', 'unit'],
+        },
+      },
+    });
+
+    const responseText = response.text ? response.text.trim() : '{}';
+    const parsed = JSON.parse(responseText) as ExtractedProduct;
+
+    // If no barcode read from image, assign systematic VN-OCR barcode
+    if (!parsed.barcode || parsed.barcode.trim() === '') {
+      parsed.barcode = `VN-OCR-${Date.now()}`;
+    }
+
+    return parsed;
   }
 }

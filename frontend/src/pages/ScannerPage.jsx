@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import BarcodeScanner from '../components/BarcodeScanner';
 import ProductPreviewModal from '../components/ProductPreviewModal';
-import { retrieveBarcode, inboundInventory } from '../services/api';
+import { retrieveBarcode, inboundInventory, processVisionOcr } from '../services/api';
 import {
   Sparkles,
   Keyboard,
@@ -17,6 +17,8 @@ import {
   CheckCircle2,
   PackageCheck,
   AlertCircle,
+  Camera,
+  Image,
 } from 'lucide-react';
 
 export default function ScannerPage({ onNavigate }) {
@@ -27,9 +29,13 @@ export default function ScannerPage({ onNavigate }) {
 
   // AI retrieval states
   const [isRetrieving, setIsRetrieving] = useState(false);
+  const [isVisionProcessing, setIsVisionProcessing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [retrievedProduct, setRetrievedProduct] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  // File input ref for camera/upload
+  const fileInputRef = useRef(null);
 
   // Toast feedback state
   const [toastMessage, setToastMessage] = useState(null);
@@ -53,11 +59,93 @@ export default function ScannerPage({ onNavigate }) {
     },
   ]);
 
-  const showToast = (message) => {
-    setToastMessage(message);
+  const showToast = (message, isError = false) => {
+    setToastMessage({ text: message, isError });
     setTimeout(() => {
       setToastMessage(null);
     }, 3500);
+  };
+
+  /**
+   * Compresses image via HTML Canvas before upload to keep payload < 150KB
+   */
+  const compressImage = (file) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new window.Image();
+        img.onload = () => {
+          const maxDim = 1024;
+          let { width, height } = img;
+          if (width > maxDim || height > maxDim) {
+            if (width > height) {
+              height = Math.round((height * maxDim) / width);
+              width = maxDim;
+            } else {
+              width = Math.round((width * maxDim) / height);
+              height = maxDim;
+            }
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+          const base64 = canvas.toDataURL('image/jpeg', 0.8);
+          resolve(base64);
+        };
+        img.onerror = reject;
+        img.src = e.target.result;
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  };
+
+  /**
+   * Handles Camera Capture for unbarcoded products using Gemini Vision OCR
+   */
+  const handleImageCapture = async (e) => {
+    const file = e.target?.files?.[0];
+    if (!file) return;
+
+    setIsScannerPaused(true);
+    setIsVisionProcessing(true);
+
+    try {
+      const compressedBase64 = await compressImage(file);
+      const response = await processVisionOcr({
+        image: compressedBase64,
+        mimeType: 'image/jpeg',
+      });
+      const product = response.data || response;
+
+      setRetrievedProduct(product);
+      setIsModalOpen(true);
+
+      // Add to recent scans list
+      const newScanItem = {
+        code: product.barcode,
+        format: 'VISION_OCR',
+        name: product.name,
+        timestamp: new Date().toLocaleTimeString('vi-VN', {
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+        }),
+      };
+
+      setRecentScans((prev) => [
+        newScanItem,
+        ...prev.filter((i) => i.code !== product.barcode),
+      ].slice(0, 5));
+    } catch (err) {
+      console.warn('Vision OCR error:', err.message);
+      showToast('Lỗi khi phân tích ảnh: ' + err.message, true);
+    } finally {
+      setIsVisionProcessing(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
   };
 
   /**
@@ -194,11 +282,27 @@ export default function ScannerPage({ onNavigate }) {
     <div className="space-y-4 pb-24 pt-2 relative">
       {/* Toast Notification Banner */}
       {toastMessage && (
-        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 w-[90%] max-w-sm bg-slate-900/95 text-white p-3.5 rounded-2xl shadow-2xl border border-emerald-500/40 flex items-start gap-2.5 backdrop-blur-md animate-in fade-in slide-in-from-top-4 duration-200">
-          <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+        <div
+          className={`fixed top-16 left-1/2 -translate-x-1/2 z-50 w-[90%] max-w-sm p-3.5 rounded-2xl shadow-2xl border flex items-start gap-2.5 backdrop-blur-md animate-in fade-in slide-in-from-top-4 duration-200 ${
+            toastMessage.isError
+              ? 'bg-rose-950/95 text-white border-rose-500/50'
+              : 'bg-slate-900/95 text-white border-emerald-500/50'
+          }`}
+        >
+          {toastMessage.isError ? (
+            <AlertCircle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
+          ) : (
+            <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+          )}
           <div className="text-xs">
-            <span className="font-bold text-emerald-300 block">Thành công!</span>
-            <span className="text-slate-200">{toastMessage}</span>
+            <span
+              className={`font-bold block ${
+                toastMessage.isError ? 'text-rose-300' : 'text-emerald-300'
+              }`}
+            >
+              {toastMessage.isError ? 'Lỗi thao tác' : 'Thành công!'}
+            </span>
+            <span className="text-slate-200">{toastMessage.text}</span>
           </div>
         </div>
       )}
@@ -206,10 +310,70 @@ export default function ScannerPage({ onNavigate }) {
       {/* Camera Barcode Scanner Component */}
       <BarcodeScanner
         onScan={handleScanDetected}
-        isPaused={isScannerPaused || isRetrieving}
+        isPaused={isScannerPaused || isRetrieving || isVisionProcessing}
       />
 
-      {/* AI Processing Loading Overlay */}
+      {/* Multimodal Vision OCR Fallback Action Card */}
+      <div className="bg-gradient-to-r from-amber-50 via-orange-50 to-amber-50 border border-amber-200/80 rounded-2xl p-3.5 shadow-sm">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-10 h-10 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center shadow-md shadow-amber-500/20 shrink-0">
+              <Camera className="w-5 h-5" />
+            </div>
+            <div className="min-w-0">
+              <h4 className="text-xs font-bold text-slate-900 flex items-center gap-1.5 flex-wrap">
+                <span>Không có mã vạch?</span>
+                <span className="text-[9px] font-bold bg-amber-200/90 text-amber-900 px-1.5 py-0.2 rounded">
+                  AI Vision
+                </span>
+              </h4>
+              <p className="text-[11px] text-slate-500 mt-0.5 truncate">
+                Chụp bao bì / nhãn mác để OCR bóc tách
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isVisionProcessing || isRetrieving}
+            className="px-3.5 py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-xs rounded-xl shadow-md shadow-amber-500/20 active:scale-95 transition-all flex items-center gap-1.5 shrink-0"
+          >
+            <Camera className="w-4 h-4 stroke-[2.2]" />
+            <span>Chụp ảnh</span>
+          </button>
+        </div>
+
+        {/* Hidden Camera/Album Input */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          onChange={handleImageCapture}
+          className="hidden"
+        />
+      </div>
+
+      {/* Vision OCR Processing State */}
+      {isVisionProcessing && (
+        <div className="bg-gradient-to-r from-amber-900 via-orange-950 to-slate-900 text-white rounded-2xl p-4 shadow-xl flex items-center gap-3 border border-amber-500/40 animate-pulse">
+          <div className="w-10 h-10 rounded-xl bg-amber-500/30 flex items-center justify-center shrink-0">
+            <Loader2 className="w-5 h-5 text-amber-300 animate-spin" />
+          </div>
+          <div>
+            <h4 className="text-xs font-bold flex items-center gap-1.5 text-amber-200">
+              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+              <span>AI Vision đang đọc nhãn mác bao bì...</span>
+            </h4>
+            <p className="text-[11px] text-slate-300 mt-0.5">
+              Gemini Multimodal Vision đang phân tích nhãn OCR, quy cách & chất liệu
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Barcode AI Processing Loading Overlay */}
       {isRetrieving && (
         <div className="bg-gradient-to-r from-indigo-900 to-violet-900 text-white rounded-2xl p-4 shadow-lg flex items-center gap-3 border border-indigo-400/30 animate-pulse">
           <div className="w-9 h-9 rounded-xl bg-indigo-500/30 flex items-center justify-center shrink-0">
@@ -306,7 +470,7 @@ export default function ScannerPage({ onNavigate }) {
           />
           <button
             type="submit"
-            disabled={!manualCode.trim() || isRetrieving}
+            disabled={!manualCode.trim() || isRetrieving || isVisionProcessing}
             className="bg-indigo-600 hover:bg-indigo-700 active:scale-95 disabled:opacity-40 text-white px-4 py-2 rounded-xl text-xs font-semibold transition-all flex items-center gap-1"
           >
             {isRetrieving ? (
