@@ -19,6 +19,7 @@ export default function ProductPreviewModal({
   onClose,
   productData,
   onConfirmSave,
+  isSaving = false,
 }) {
   const [productName, setProductName] = useState('');
   const [quantity, setQuantity] = useState(10);
@@ -61,16 +62,29 @@ export default function ProductPreviewModal({
 
   const handleSubmit = (e) => {
     e?.preventDefault();
-    const finalPayload = {
-      ...productData,
-      name: productName,
-      quantity,
-      costPrice,
-      retailPrice,
-      shelfLocation,
-      savedAt: new Date().toISOString(),
+    const inboundPayload = {
+      barcode: productData.barcode,
+      productData: {
+        name: productName,
+        brand: productData.brand || '',
+        category: productData.category || 'Khác',
+        unit: productData.unit || 'Cái',
+        specs: productData.specs || {},
+        suggestedRetailPriceMin: productData.suggestedRetailPriceMin,
+        suggestedRetailPriceMax: productData.suggestedRetailPriceMax,
+      },
+      inventoryData: {
+        stockQuantity: quantity,
+        costPrice,
+        retailPrice,
+        shelfLocation,
+        supplierName: productData.brand
+          ? `NPP ${productData.brand}`
+          : 'Đại lý phân phối gia dụng',
+        storeId: 'store-001',
+      },
     };
-    onConfirmSave(finalPayload);
+    onConfirmSave(inboundPayload);
   };
 
   const specsList = productData.specs
@@ -312,11 +326,21 @@ export default function ProductPreviewModal({
         <div className="p-4 bg-white border-t border-slate-100 space-y-2">
           <button
             type="button"
+            disabled={isSaving}
             onClick={handleSubmit}
-            className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 active:scale-[0.98] text-white font-bold text-sm shadow-lg shadow-emerald-600/25 transition-all flex items-center justify-center gap-2"
+            className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 active:scale-[0.98] disabled:opacity-60 text-white font-bold text-sm shadow-lg shadow-emerald-600/25 transition-all flex items-center justify-center gap-2"
           >
-            <CheckCircle2 className="w-5 h-5" />
-            <span>Xác nhận Lưu kho (+{quantity} {productData.unit || 'Cái'})</span>
+            {isSaving ? (
+              <>
+                <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                <span>Đang ghi vào kho MongoDB...</span>
+              </>
+            ) : (
+              <>
+                <CheckCircle2 className="w-5 h-5" />
+                <span>Xác nhận Lưu kho (+{quantity} {productData.unit || 'Cái'})</span>
+              </>
+            )}
           </button>
 
           <button

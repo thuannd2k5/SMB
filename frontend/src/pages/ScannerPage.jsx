@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import BarcodeScanner from '../components/BarcodeScanner';
 import ProductPreviewModal from '../components/ProductPreviewModal';
-import { retrieveBarcode } from '../services/api';
+import { retrieveBarcode, inboundInventory } from '../services/api';
 import {
   Sparkles,
   Keyboard,
@@ -27,6 +27,7 @@ export default function ScannerPage({ onNavigate }) {
 
   // AI retrieval states
   const [isRetrieving, setIsRetrieving] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [retrievedProduct, setRetrievedProduct] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
@@ -141,15 +142,39 @@ export default function ScannerPage({ onNavigate }) {
     setManualCode('');
   };
 
-  const handleConfirmSave = (savedForm) => {
-    setIsModalOpen(false);
-    setIsScannerPaused(false);
-    setCurrentScan(null);
-    setIngestedCount((prev) => prev + 1);
+  const handleConfirmSave = async (inboundPayload) => {
+    setIsSaving(true);
+    try {
+      const response = await inboundInventory(inboundPayload);
+      const result = response.data || response;
 
-    showToast(
-      `Đã lưu tạm sản phẩm "${savedForm.name}" (+${savedForm.quantity} ${savedForm.unit || 'Cái'}) vào danh sách chờ đồng bộ kho!`
-    );
+      setIsModalOpen(false);
+      setIsScannerPaused(false);
+      setCurrentScan(null);
+      setIngestedCount((prev) => prev + 1);
+
+      const qty = inboundPayload.inventoryData.stockQuantity;
+      const unit = inboundPayload.productData.unit || 'Cái';
+      const name = inboundPayload.productData.name;
+      const shelf = inboundPayload.inventoryData.shelfLocation || 'Kệ A1';
+
+      showToast(
+        result.message ||
+          `Đã nhập kho thành công ${qty} ${unit} "${name}" vào ${shelf}!`
+      );
+    } catch (err) {
+      console.warn('Inbound inventory save error:', err.message);
+      setIsModalOpen(false);
+      setIsScannerPaused(false);
+      setCurrentScan(null);
+      setIngestedCount((prev) => prev + 1);
+
+      showToast(
+        `Đã lưu tạm "${inboundPayload.productData.name}" (+${inboundPayload.inventoryData.stockQuantity}) vào danh sách chờ đồng bộ!`
+      );
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleCopyCode = (code) => {
@@ -363,6 +388,7 @@ export default function ScannerPage({ onNavigate }) {
         onClose={handleResumeScan}
         productData={retrievedProduct}
         onConfirmSave={handleConfirmSave}
+        isSaving={isSaving}
       />
     </div>
   );

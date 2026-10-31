@@ -40,3 +40,7 @@ export const getAiStatus = async () => {
 export const retrieveBarcode = async (barcode) => {
   return await apiClient.post('/ai/retrieve-barcode', { barcode });
 };
+
+export const inboundInventory = async (inboundData) => {
+  return await apiClient.post('/inventory/inbound', inboundData);
+};

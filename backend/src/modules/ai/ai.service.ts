@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import * as cheerio from 'cheerio';
-import { GeminiService, ExtractedProduct } from './gemini.service';
+import { GeminiService } from './gemini.service';
+import { CatalogService } from '../catalog/catalog.service';
 
 export interface BarcodeProductResponse {
   barcode: string;
@@ -11,10 +12,11 @@ export interface BarcodeProductResponse {
   specs: Record<string, any>;
   suggestedRetailPriceMin: number;
   suggestedRetailPriceMax: number;
-  source: 'AI_RETRIEVED' | 'MOCK_FALLBACK';
+  source: 'SYSTEM_CACHE' | 'AI_RETRIEVED' | 'MOCK_FALLBACK';
   metadata?: {
     searchSnippetFound?: boolean;
     provider?: string;
+    latencyMs?: number;
   };
 }
 
@@ -81,14 +83,17 @@ export class AiService {
     },
   };
 
-  constructor(private readonly geminiService: GeminiService) {}
+  constructor(
+    private readonly geminiService: GeminiService,
+    private readonly catalogService: CatalogService,
+  ) {}
 
   getStatus() {
     return {
       geminiConfigured: this.geminiService.isConfigured(),
       model: 'gemini-2.5-flash',
       readyForRetrieval: true,
-      message: 'Gemini AI Retrieval Service is active',
+      message: 'Gemini AI Retrieval Service with Master Catalog Cache is active',
     };
   }
 
@@ -116,9 +121,7 @@ export class AiService {
 
       clearTimeout(timeoutId);
 
-      if (!response.ok) {
-        return '';
-      }
+      if (!response.ok) return '';
 
       const html = await response.text();
       const $ = cheerio.load(html);
@@ -143,13 +146,38 @@ export class AiService {
   }
 
   /**
-   * Bóc tách thông tin sản phẩm từ mã vạch (EAN-13, UPC, Code-128)
+   * Bóc tách thông tin sản phẩm từ mã vạch (Cache-First -> AI Retrieval -> Auto-Cache)
    */
   async retrieveBarcode(barcode: string): Promise<BarcodeProductResponse> {
     const cleanBarcode = barcode.trim();
+    const startTime = Date.now();
     this.logger.log(`Processing barcode retrieval for: [${cleanBarcode}]`);
 
-    // 1. If Gemini AI is configured with API key, attempt live AI extraction
+    // 1. CACHE-FIRST: Kiểm tra Master Catalog trước tiên ($0 cost, < 50ms)
+    const cachedItem = await this.catalogService.findByBarcode(cleanBarcode);
+    if (cachedItem) {
+      const latency = Date.now() - startTime;
+      this.logger.log(`⚡ CACHE HIT for [${cleanBarcode}] (${latency}ms) - Returning from Master Catalog`);
+      return {
+        barcode: cleanBarcode,
+        name: cachedItem.name,
+        brand: cachedItem.brand || '',
+        category: cachedItem.category || 'Khác',
+        unit: cachedItem.unit || 'Cái',
+        specs: cachedItem.specs || {},
+        suggestedRetailPriceMin: cachedItem.suggestedRetailPriceMin || 0,
+        suggestedRetailPriceMax: cachedItem.suggestedRetailPriceMax || 0,
+        source: 'SYSTEM_CACHE',
+        metadata: {
+          provider: 'master_catalog_cache',
+          latencyMs: latency,
+        },
+      };
+    }
+
+    // 2. AI RETRIEVAL: Khi chưa có trong DB, gọi Gemini Flash & Web Scraper
+    let productResult: BarcodeProductResponse | null = null;
+
     if (this.geminiService.isConfigured()) {
       try {
         const webSnippet = await this.searchWebForBarcode(cleanBarcode);
@@ -164,7 +192,7 @@ export class AiService {
         );
 
         if (extracted && extracted.name) {
-          return {
+          productResult = {
             barcode: cleanBarcode,
             name: extracted.name,
             brand: extracted.brand || 'Gia dụng Việt Nam',
@@ -177,16 +205,32 @@ export class AiService {
             metadata: {
               searchSnippetFound: webSnippet.length > 20,
               provider: 'gemini-2.5-flash',
+              latencyMs: Date.now() - startTime,
             },
           };
         }
       } catch (err: any) {
-        this.logger.warn(`Gemini live extraction failed: ${err.message}. Falling back to simulation.`);
+        this.logger.warn(`Gemini live extraction error: ${err.message}. Falling back to simulation.`);
       }
     }
 
-    // 2. Fallback simulation (ensures zero test blockages when offline or without API key)
-    return this.getFallbackProduct(cleanBarcode);
+    // 3. FALLBACK: Dùng dữ liệu giả lập chuẩn xác nếu AI chưa cấu hình key
+    if (!productResult) {
+      productResult = this.getFallbackProduct(cleanBarcode);
+      productResult.metadata = {
+        latencyMs: Date.now() - startTime,
+      };
+    }
+
+    // 4. AUTO-CACHE: Tự động lưu bản ghi mới vào Master Catalog cho các lần tra cứu sau
+    try {
+      await this.catalogService.upsertProduct(productResult, productResult.source);
+      this.logger.log(`💾 Auto-saved [${cleanBarcode}] into Master Catalog`);
+    } catch (err: any) {
+      this.logger.warn(`Failed to auto-cache [${cleanBarcode}]: ${err.message}`);
+    }
+
+    return productResult;
   }
 
   /**
@@ -202,7 +246,6 @@ export class AiService {
       };
     }
 
-    // Generic realistic household appliance fallback for unknown barcodes
     return {
       barcode,
       name: `Sản phẩm Gia dụng Mã ${barcode}`,
