@@ -44,5 +44,5 @@
 
 #### PHA 4: HỎI ĐÁP GIỌNG NÓI (VOICE BI), TEST & PACKAGING (Tuần 11 - 14)
 - [x] **Task 4.1**: Conversational BI: Voice Assistant (Web Speech API -> Gemini Function Calling truy vấn doanh thu, tồn kho theo ngôn ngữ tự nhiên).
-- [ ] **Task 4.2**: Tối ưu hiệu năng, Caching Master Catalog, Service Worker PWA Offline mode.
+- [x] **Task 4.2**: Tối ưu hiệu năng, Caching Master Catalog, Service Worker PWA Offline mode.
 - [ ] **Task 4.3**: Pilot Testing & Demo hoàn chỉnh với bộ 50+ mã sản phẩm gia dụng thực tế.

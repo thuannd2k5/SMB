@@ -17,6 +17,7 @@ import {
   ShoppingBag,
 } from 'lucide-react';
 import { getInventoryHealth } from '../services/api';
+import { saveHealthOffline, getHealthOffline } from '../services/offlineStorage';
 import ReorderSupplierModal from '../components/ReorderSupplierModal';
 
 export default function Dashboard({ healthData, isChecking, backendStatus, onNavigate }) {
@@ -29,9 +30,16 @@ export default function Dashboard({ healthData, isChecking, backendStatus, onNav
     try {
       const res = await getInventoryHealth();
       const data = res?.data || res;
-      setHealthAnalytics(data);
+      if (data && data.summary) {
+        setHealthAnalytics(data);
+        saveHealthOffline(data);
+      }
     } catch (err) {
-      console.warn('Failed to fetch inventory health analytics:', err.message);
+      console.warn('Failed to fetch inventory health analytics online, using offline cache:', err.message);
+      const offline = getHealthOffline();
+      if (offline) {
+        setHealthAnalytics(offline);
+      }
     } finally {
       setIsLoadingAnalytics(false);
     }

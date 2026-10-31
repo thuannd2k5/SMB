@@ -25,6 +25,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import { getInventoryItems, adjustStock, getSmartPricing, inboundInventory } from '../services/api';
+import { saveInventoryOffline, getInventoryOffline } from '../services/offlineStorage';
 import ReorderSupplierModal from '../components/ReorderSupplierModal';
 
 export default function InventoryPage({ onNavigate }) {
@@ -36,6 +37,8 @@ export default function InventoryPage({ onNavigate }) {
   const [toastMessage, setToastMessage] = useState(null);
   const [actionLoadingId, setActionLoadingId] = useState(null);
   const [isReorderModalOpen, setIsReorderModalOpen] = useState(false);
+  const [isUsingOfflineData, setIsUsingOfflineData] = useState(false);
+  const [offlineCachedAt, setOfflineCachedAt] = useState(null);
 
   // Reprice Agent Modal state (Task 3.1)
   const [repriceItem, setRepriceItem] = useState(null);
@@ -69,9 +72,43 @@ export default function InventoryPage({ onNavigate }) {
 
       const response = await getInventoryItems(params);
       const data = response?.data || response || [];
-      setItems(Array.isArray(data) ? data : []);
+      const itemsList = Array.isArray(data) ? data : [];
+      setItems(itemsList);
+      setIsUsingOfflineData(false);
+
+      // Cache full list for offline usage
+      if (!searchQuery.trim() && activeFilter === 'all') {
+        saveInventoryOffline(itemsList);
+      }
     } catch (err) {
-      console.warn('Failed to load inventory:', err.message);
+      console.warn('Failed to load inventory online, fallback to offline storage:', err.message);
+      // Offline fallback from persistent local storage
+      const offline = getInventoryOffline();
+      let offlineItems = offline.items;
+
+      if (searchQuery.trim()) {
+        const s = searchQuery.toLowerCase().trim();
+        offlineItems = offlineItems.filter(
+          (i) =>
+            i.name?.toLowerCase().includes(s) ||
+            i.barcode?.toLowerCase().includes(s) ||
+            i.brand?.toLowerCase().includes(s)
+        );
+      }
+      if (activeFilter === 'lowStock') {
+        offlineItems = offlineItems.filter((i) => i.stockQuantity <= (i.minStockAlert ?? 5));
+      } else if (activeFilter === 'needRestock') {
+        offlineItems = offlineItems.filter((i) => i.urgency === 'CRITICAL' || i.stockQuantity <= 3);
+      } else if (activeFilter === 'deadStock') {
+        offlineItems = offlineItems.filter((i) => i.isDeadStock);
+      } else if (activeFilter.startsWith('shelf:')) {
+        const shelf = activeFilter.replace('shelf:', '');
+        offlineItems = offlineItems.filter((i) => i.shelfLocation === shelf);
+      }
+
+      setItems(offlineItems);
+      setIsUsingOfflineData(true);
+      setOfflineCachedAt(offline.cachedAt);
     } finally {
       setIsLoading(false);
     }
@@ -373,6 +410,21 @@ export default function InventoryPage({ onNavigate }) {
           ))}
         </div>
       </div>
+
+      {/* Offline Data Indicator Banner */}
+      {isUsingOfflineData && (
+        <div className="bg-amber-50 border border-amber-300 rounded-2xl p-3 flex items-center justify-between text-xs text-amber-900 shadow-2xs">
+          <div className="flex items-center gap-2 font-medium">
+            <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+            <span>Đang xem dữ liệu ngoại tuyến (Offline)</span>
+          </div>
+          {offlineCachedAt && (
+            <span className="text-[10px] text-amber-700 bg-amber-100/70 px-2 py-0.5 rounded-full">
+              Lưu: {new Date(offlineCachedAt).toLocaleTimeString('vi-VN')}
+            </span>
+          )}
+        </div>
+      )}
 
       {/* 3. Product Cards List */}
       {isLoading ? (

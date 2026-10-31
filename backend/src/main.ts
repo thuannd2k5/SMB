@@ -1,6 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import * as compression from 'compression';
 import { AppModule } from './app.module';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 import { AllExceptionsFilter } from './common/filters/http-exception.filter';
@@ -24,6 +25,9 @@ async function bootstrap() {
   });
 
   const app = await NestFactory.create(AppModule);
+
+  // Enable HTTP Gzip compression for performance optimization
+  app.use(compression());
 
   const configService = app.get(ConfigService);
   const port = configService.get<number>('port') || 3000;

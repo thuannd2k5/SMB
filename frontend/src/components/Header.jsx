@@ -1,8 +1,33 @@
-import React from 'react';
-import { Store, Wifi, WifiOff, RefreshCw, Mic } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Store, Wifi, WifiOff, RefreshCw, Mic, AlertTriangle } from 'lucide-react';
 
 export default function Header({ backendStatus, onRefreshStatus, isChecking, onOpenVoiceModal }) {
+  const [isOnline, setIsOnline] = useState(
+    typeof navigator !== 'undefined' ? navigator.onLine : true
+  );
+
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
   const getStatusBadge = () => {
+    if (!isOnline) {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-300">
+          <WifiOff className="w-3 h-3 text-amber-600" />
+          <span className="font-bold">Ngoại tuyến</span>
+        </span>
+      );
+    }
     if (isChecking) {
       return (
         <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200">
@@ -40,8 +65,16 @@ export default function Header({ backendStatus, onRefreshStatus, isChecking, onO
   };
 
   return (
-    <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200 px-4 py-3 shadow-sm">
-      <div className="flex items-center justify-between">
+    <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-sm">
+      {/* Offline Alert Strip when network drops */}
+      {!isOnline && (
+        <div className="bg-amber-500 text-white text-[11px] font-semibold py-1 px-3 text-center flex items-center justify-center gap-1.5 shadow-2xs">
+          <AlertTriangle className="w-3.5 h-3.5" />
+          <span>⚠️ Đang ở chế độ Ngoại tuyến (Offline) - Đang hiển thị dữ liệu lưu tạm</span>
+        </div>
+      )}
+
+      <div className="px-4 py-3 flex items-center justify-between">
         <div className="flex items-center gap-2.5">
           <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-600 to-indigo-500 flex items-center justify-center text-white shadow-md shadow-indigo-200">
             <Store className="w-5 h-5" />
