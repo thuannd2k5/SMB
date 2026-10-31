@@ -38,7 +38,7 @@
 - [x] **Task 2.3**: Vision Fallback: Module chụp ảnh bao bì khi quét mã vạch không ra thông tin (Gemini Vision OCR bóc tách thông số).
 
 #### PHA 3: HỆ SINH THÁI AI QUẢN TRỊ & TỐI ƯU VẬN HÀNH (Tuần 7 - 10)
-- [ ] **Task 3.1**: Smart Pricing Agent: Khuyến nghị biên lợi nhuận và giá bán lẻ theo giá vốn và giá thị trường TMĐT.
+- [x] **Task 3.1**: Smart Pricing Agent: Khuyến nghị biên lợi nhuận và giá bán lẻ theo giá vốn và giá thị trường TMĐT.
 - [ ] **Task 3.2**: Inventory Health Engine: Thuật toán phân loại ABC & Cảnh báo đứt hàng (Runout Days) + Xả hàng ế (>45 ngày).
 - [ ] **Task 3.3**: Supplier Re-ordering Agent: Tự động gom đơn hàng thiếu, nhóm theo Nhà Phân Phối và sinh mẫu tin nhắn Zalo/SMS 1 chạm.
 

@@ -2,6 +2,7 @@ import { Controller, Post, Body, Get } from '@nestjs/common';
 import { AiService } from './ai.service';
 import { RetrieveBarcodeDto } from './dto/retrieve-barcode.dto';
 import { VisionOcrDto } from './dto/vision-ocr.dto';
+import { SmartPricingDto } from './dto/smart-pricing.dto';
 
 @Controller('ai')
 export class AiController {
@@ -30,6 +31,15 @@ export class AiController {
     return {
       success: true,
       data: productData,
+    };
+  }
+
+  @Post('smart-pricing')
+  async smartPricing(@Body() dto: SmartPricingDto) {
+    const result = await this.aiService.calculateSmartPricing(dto);
+    return {
+      success: true,
+      data: result,
     };
   }
 }

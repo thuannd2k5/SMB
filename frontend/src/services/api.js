@@ -56,3 +56,7 @@ export const adjustStock = async (adjustmentData) => {
 export const processVisionOcr = async (payload) => {
   return await apiClient.post('/ai/vision-ocr', payload);
 };
+
+export const getSmartPricing = async (pricingData) => {
+  return await apiClient.post('/ai/smart-pricing', pricingData);
+};

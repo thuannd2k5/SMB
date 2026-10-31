@@ -230,4 +230,54 @@ Nếu trên bao bì có in mã vạch (dãy số barcode), hãy đọc chính x�
 
     return parsed;
   }
+
+  /**
+   * Sinh lời khuyên kinh doanh (AI Insight) cho mức giá đề xuất
+   */
+  async generatePricingInsight(params: {
+    productName: string;
+    costPrice: number;
+    marketMin: number;
+    marketMax: number;
+    recommendedPrice: number;
+    marginPercentage: number;
+  }): Promise<string> {
+    const {
+      productName,
+      costPrice,
+      marketMin,
+      marketMax,
+      recommendedPrice,
+      marginPercentage,
+    } = params;
+
+    const fallbackInsight = `Mức giá bán lẻ đề xuất tối ưu là ${recommendedPrice.toLocaleString(
+      'vi-VN',
+    )} VNĐ (Biên lợi nhuận gộp ${marginPercentage}%). Mức giá này đảm bảo cạnh tranh tốt với các tiệm xung quanh và vẫn duy trì biên lợi nhuận an toàn cho cửa hàng gia dụng SMB.`;
+
+    if (!this.ai) {
+      return fallbackInsight;
+    }
+
+    try {
+      const prompt = `Bạn là chuyên gia cố vấn chiến lược định giá bán lẻ cho các cửa hàng gia dụng SMB Việt Nam.
+Dựa trên thông tin sản phẩm:
+- Tên sản phẩm: "${productName}"
+- Giá vốn nhập: ${costPrice.toLocaleString('vi-VN')} VNĐ
+- Khoảng giá thị trường tham khảo: ${marketMin.toLocaleString('vi-VN')} VNĐ - ${marketMax.toLocaleString('vi-VN')} VNĐ
+- Giá bán lẻ đề xuất: ${recommendedPrice.toLocaleString('vi-VN')} VNĐ (Biên lợi nhuận gộp: ${marginPercentage}%)
+Hãy đưa ra 1-2 câu nhận định ngắn gọn, súc tích (dưới 40 từ), thực tế cho chủ tiệm gia dụng giải thích vì sao mức giá này tối ưu. Không dùng gạch đầu dòng, trả về text thuần.`;
+
+      const response = await this.ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: prompt,
+      });
+
+      const text = response.text ? response.text.trim() : '';
+      return text.length > 10 ? text : fallbackInsight;
+    } catch (err: any) {
+      this.logger.warn(`Failed to generate Gemini pricing insight: ${err.message}`);
+      return fallbackInsight;
+    }
+  }
 }
