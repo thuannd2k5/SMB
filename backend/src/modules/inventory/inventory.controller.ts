@@ -1,14 +1,33 @@
-import { Controller, Get, Post, Body, Query } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Query,
+} from '@nestjs/common';
 import { InventoryService } from './inventory.service';
 import { InboundInventoryDto } from './dto/inbound-inventory.dto';
+import { AdjustStockDto } from './dto/adjust-stock.dto';
 
 @Controller('inventory')
 export class InventoryController {
   constructor(private readonly inventoryService: InventoryService) {}
 
-  @Get()
-  findAll(@Query('storeId') storeId?: string) {
-    return this.inventoryService.findAll(storeId || 'store-001');
+  @Get('items')
+  getItems(
+    @Query('search') search?: string,
+    @Query('shelf') shelf?: string,
+    @Query('category') category?: string,
+    @Query('lowStockOnly') lowStockOnly?: string,
+    @Query('storeId') storeId?: string,
+  ) {
+    return this.inventoryService.getItems({
+      search,
+      shelf,
+      category,
+      lowStockOnly,
+      storeId,
+    });
   }
 
   @Get('overview')
@@ -19,5 +38,10 @@ export class InventoryController {
   @Post('inbound')
   inbound(@Body() dto: InboundInventoryDto) {
     return this.inventoryService.inbound(dto);
+  }
+
+  @Post('adjust-stock')
+  adjustStock(@Body() dto: AdjustStockDto) {
+    return this.inventoryService.adjustStock(dto);
   }
 }

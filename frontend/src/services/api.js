@@ -44,3 +44,11 @@ export const retrieveBarcode = async (barcode) => {
 export const inboundInventory = async (inboundData) => {
   return await apiClient.post('/inventory/inbound', inboundData);
 };
+
+export const getInventoryItems = async (params = {}) => {
+  return await apiClient.get('/inventory/items', { params });
+};
+
+export const adjustStock = async (adjustmentData) => {
+  return await apiClient.post('/inventory/adjust-stock', adjustmentData);
+};

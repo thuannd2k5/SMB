@@ -1,4 +1,9 @@
-import { Injectable, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  BadRequestException,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import {
@@ -7,12 +12,31 @@ import {
 } from './schemas/store-inventory.schema';
 import { CatalogService } from '../catalog/catalog.service';
 import { InboundInventoryDto } from './dto/inbound-inventory.dto';
+import { AdjustStockDto } from './dto/adjust-stock.dto';
+
+export interface FormattedInventoryItem {
+  _id: string;
+  barcode: string;
+  name: string;
+  brand: string;
+  category: string;
+  unit: string;
+  specs: Record<string, any>;
+  stockQuantity: number;
+  costPrice: number;
+  retailPrice: number;
+  shelfLocation: string;
+  minStockAlert: number;
+  lastSoldAt: Date | null;
+  supplierName?: string;
+  supplierPhone?: string;
+}
 
 @Injectable()
 export class InventoryService {
   private readonly logger = new Logger(InventoryService.name);
 
-  // In-memory fallback map for offline resilience: storeId -> (catalogId -> inventory)
+  // In-memory fallback map for offline resilience: compositeKey -> item
   private readonly localInventories = new Map<string, any>();
 
   constructor(
@@ -96,7 +120,7 @@ export class InventoryService {
     const newQty = (existingMem?.stockQuantity || 0) + inventoryData.stockQuantity;
 
     const memoryRecord = {
-      _id: updatedInventory?._id || `inv_${Date.now()}`,
+      _id: updatedInventory?._id?.toString() || existingMem?._id || `inv_${Date.now()}`,
       storeId,
       catalogId,
       catalog: catalogItem,
@@ -106,6 +130,8 @@ export class InventoryService {
       retailPrice: inventoryData.retailPrice,
       shelfLocation: inventoryData.shelfLocation || 'Kệ A1',
       supplierName: inventoryData.supplierName || 'Đại lý phân phối',
+      minStockAlert: 5,
+      lastSoldAt: null,
       updatedAt: new Date(),
     };
 
@@ -119,24 +145,220 @@ export class InventoryService {
   }
 
   /**
-   * Danh sách toàn bộ mặt hàng tồn kho
+   * API Lấy danh sách tồn kho có bộ lọc & tìm kiếm (GET /api/inventory/items)
    */
-  async findAll(storeId: string = 'store-001') {
-    try {
-      const items = await this.inventoryModel
-        .find({ storeId })
-        .populate('catalogId')
-        .lean()
-        .exec();
+  async getItems(query: {
+    search?: string;
+    shelf?: string;
+    category?: string;
+    lowStockOnly?: boolean | string;
+    storeId?: string;
+  }): Promise<FormattedInventoryItem[]> {
+    const storeId = query.storeId || 'store-001';
+    let rawItems: any[] = [];
 
-      if (items && items.length > 0) return items;
-    } catch (err: any) {
-      this.logger.warn(`MongoDB findAll notice: ${err.message}`);
+    // 1. Thử lấy từ MongoDB nếu DB online
+    if (this.inventoryModel.db?.readyState === 1) {
+      try {
+        const filter: any = { storeId };
+        if (query.shelf && query.shelf.trim() !== '') {
+          filter.shelfLocation = query.shelf.trim();
+        }
+
+        const docs = await this.inventoryModel
+          .find(filter)
+          .populate('catalogId')
+          .sort({ updatedAt: -1 })
+          .lean()
+          .exec();
+
+        if (docs && docs.length > 0) {
+          rawItems = docs.map((doc: any) => {
+            const cat = doc.catalogId || {};
+            return {
+              _id: doc._id.toString(),
+              barcode: cat.barcode || doc.barcode || '',
+              name: cat.name || 'Sản phẩm chưa đặt tên',
+              brand: cat.brand || '',
+              category: cat.category || 'Khác',
+              unit: cat.unit || 'Cái',
+              specs: cat.specs || {},
+              stockQuantity: doc.stockQuantity,
+              costPrice: doc.costPrice,
+              retailPrice: doc.retailPrice,
+              shelfLocation: doc.shelfLocation,
+              minStockAlert: doc.minStockAlert ?? 5,
+              lastSoldAt: doc.lastSoldAt || null,
+              supplierName: doc.supplierName || '',
+              supplierPhone: doc.supplierPhone || '',
+            };
+          });
+        }
+      } catch (err: any) {
+        this.logger.warn(`MongoDB getItems notice: ${err.message}. Using in-memory fallback.`);
+      }
     }
 
-    return Array.from(this.localInventories.values()).filter(
-      (item) => item.storeId === storeId,
-    );
+    // 2. Fallback in-memory nếu MongoDB rỗng hoặc offline
+    if (rawItems.length === 0) {
+      rawItems = Array.from(this.localInventories.values())
+        .filter((item) => item.storeId === storeId)
+        .map((item) => {
+          const cat = item.catalog || {};
+          return {
+            _id: item._id,
+            barcode: cat.barcode || item.barcode || '',
+            name: cat.name || item.name || 'Sản phẩm chưa đặt tên',
+            brand: cat.brand || '',
+            category: cat.category || 'Khác',
+            unit: cat.unit || 'Cái',
+            specs: cat.specs || {},
+            stockQuantity: item.stockQuantity,
+            costPrice: item.costPrice,
+            retailPrice: item.retailPrice,
+            shelfLocation: item.shelfLocation,
+            minStockAlert: item.minStockAlert ?? 5,
+            lastSoldAt: item.lastSoldAt || null,
+            supplierName: item.supplierName || '',
+            supplierPhone: item.supplierPhone || '',
+          };
+        });
+    }
+
+    // 3. Áp dụng các bộ lọc nghiệp vụ
+    let filtered = rawItems;
+
+    // Lọc theo từ khóa tìm kiếm (Tên sản phẩm hoặc Barcode)
+    if (query.search && query.search.trim()) {
+      const s = query.search.toLowerCase().trim();
+      filtered = filtered.filter(
+        (i) =>
+          i.name?.toLowerCase().includes(s) ||
+          i.barcode?.toLowerCase().includes(s) ||
+          i.brand?.toLowerCase().includes(s),
+      );
+    }
+
+    // Lọc theo vị trí kệ
+    if (query.shelf && query.shelf.trim() !== '') {
+      filtered = filtered.filter((i) => i.shelfLocation === query.shelf);
+    }
+
+    // Lọc theo danh mục
+    if (query.category && query.category.trim() !== '') {
+      filtered = filtered.filter((i) => i.category === query.category);
+    }
+
+    // Lọc chỉ các mặt hàng sắp hết hàng (stockQuantity <= minStockAlert)
+    const isLowStock =
+      query.lowStockOnly === true || query.lowStockOnly === 'true';
+    if (isLowStock) {
+      filtered = filtered.filter((i) => i.stockQuantity <= i.minStockAlert);
+    }
+
+    return filtered;
+  }
+
+  /**
+   * API Điều chỉnh tồn kho / Xuất bán (POST /api/inventory/adjust-stock)
+   */
+  async adjustStock(dto: AdjustStockDto) {
+    const { inventoryId, adjustmentType, quantity, note } = dto;
+    this.logger.log(`Adjusting stock: [${inventoryId}] Type=${adjustmentType} Qty=${quantity} Note="${note || ''}"`);
+
+    // 1. Tìm bản ghi theo inventoryId
+    let doc: any = null;
+    let memKey: string | null = null;
+    let memItem: any = null;
+
+    // Tìm trong in-memory trước
+    for (const [k, v] of this.localInventories.entries()) {
+      if (v._id === inventoryId || v._id?.toString() === inventoryId) {
+        memKey = k;
+        memItem = v;
+        break;
+      }
+    }
+
+    // Tìm trong MongoDB
+    if (this.inventoryModel.db?.readyState === 1 && Types.ObjectId.isValid(inventoryId)) {
+      try {
+        doc = await this.inventoryModel.findById(inventoryId);
+      } catch (err: any) {
+        this.logger.warn(`MongoDB findById notice: ${err.message}`);
+      }
+    }
+
+    if (!doc && !memItem) {
+      throw new NotFoundException(`Không tìm thấy mặt hàng tồn kho có mã ID: ${inventoryId}`);
+    }
+
+    const currentQty = doc ? doc.stockQuantity : memItem.stockQuantity;
+    let newQty = currentQty;
+    let message = '';
+    const now = new Date();
+
+    // 2. Kiểm tra nghiệp vụ theo từng loại thao tác
+    switch (adjustmentType) {
+      case 'OUT': {
+        // CHỐNG BÁN ÂM KHO: Không cho phép xuất vượt quá số lượng tồn
+        if (currentQty < quantity) {
+          throw new BadRequestException(
+            `Không thể xuất hàng vượt quá số lượng tồn kho hiện tại! (Tồn kho hiện có: ${currentQty}, yêu cầu xuất: ${quantity})`,
+          );
+        }
+        newQty = currentQty - quantity;
+        message = `Đã xuất kho thành công ${quantity} sản phẩm. Tồn kho còn lại: ${newQty}`;
+
+        if (doc) {
+          doc.stockQuantity = newQty;
+          doc.lastSoldAt = now;
+          await doc.save();
+        }
+        if (memItem) {
+          memItem.stockQuantity = newQty;
+          memItem.lastSoldAt = now;
+        }
+        break;
+      }
+      case 'IN': {
+        newQty = currentQty + quantity;
+        message = `Đã nhập thêm ${quantity} sản phẩm vào kho. Tồn kho mới: ${newQty}`;
+
+        if (doc) {
+          doc.stockQuantity = newQty;
+          await doc.save();
+        }
+        if (memItem) {
+          memItem.stockQuantity = newQty;
+        }
+        break;
+      }
+      case 'SET': {
+        newQty = quantity;
+        message = `Đã cập nhật kiểm kê số lượng tồn kho thành: ${newQty}`;
+
+        if (doc) {
+          doc.stockQuantity = newQty;
+          await doc.save();
+        }
+        if (memItem) {
+          memItem.stockQuantity = newQty;
+        }
+        break;
+      }
+    }
+
+    const updatedData = doc ? doc.toObject() : memItem;
+
+    return {
+      success: true,
+      message,
+      stockQuantity: newQty,
+      adjustmentType,
+      inventoryId,
+      data: updatedData,
+    };
   }
 
   /**
@@ -144,10 +366,12 @@ export class InventoryService {
    */
   async getOverview(storeId: string = 'store-001') {
     let items: any[] = [];
-    try {
-      items = await this.inventoryModel.find({ storeId }).lean().exec();
-    } catch (err: any) {
-      this.logger.warn(`MongoDB getOverview notice: ${err.message}`);
+    if (this.inventoryModel.db?.readyState === 1) {
+      try {
+        items = await this.inventoryModel.find({ storeId }).lean().exec();
+      } catch (err: any) {
+        this.logger.warn(`MongoDB getOverview notice: ${err.message}`);
+      }
     }
 
     if (items.length === 0) {
@@ -158,7 +382,7 @@ export class InventoryService {
 
     const totalProducts = items.length;
     const lowStockAlerts = items.filter(
-      (i) => i.stockQuantity <= (i.minStockAlert || 5),
+      (i) => (i.stockQuantity ?? 0) <= (i.minStockAlert ?? 5),
     ).length;
     const estimatedInventoryValue = items.reduce(
       (sum, i) => sum + (i.stockQuantity || 0) * (i.costPrice || 0),
