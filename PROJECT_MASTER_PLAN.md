@@ -30,7 +30,7 @@
 - [x] **Task 1.1**: Khởi tạo cấu trúc Full-stack Monorepo (Frontend Vite/React PWA + Backend NestJS + Mongoose setup).
 - [x] **Task 1.2**: Module Client-side Barcode Scanner PWA (quét camera độ trễ < 200ms, hỗ trợ EAN-13, UPC).
 - [x] **Task 1.3**: AI Retrieval Service (NestJS + Gemini Flash + Search/Fetch Scraper) bóc tách Barcode thành Structured JSON chuẩn hóa.
-- [ ] **Task 1.4**: Tích hợp luồng quét sản phẩm thực tế: Camera Scan -> Backend Agent -> Modal xem trước xác nhận sản phẩm trong 3s.
+- [x] **Task 1.4**: Tích hợp luồng quét sản phẩm thực tế: Camera Scan -> Backend Agent -> Modal xem trước xác nhận sản phẩm trong 3s.
 
 #### PHA 2: HAI TẦNG DATABASE & QUẢN LÝ KHO (CRUD) (Tuần 4 - 6)
 - [ ] **Task 2.1**: Thiết kế Schema Mongoose 2 tầng: `MasterCatalog` (dữ liệu chung) & `StoreInventory` (kho riêng từng cửa hàng).
