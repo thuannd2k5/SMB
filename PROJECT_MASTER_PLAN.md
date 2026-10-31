@@ -27,7 +27,7 @@
 ### PHÂN KỲ DỰ ÁN: 4 PHA - 12 TASKS CHI TIẾT
 
 #### PHA 1: NỀN TẢNG & LÕI ZERO-EFFORT INGESTION (Tuần 1 - 3)
-- [ ] **Task 1.1**: Khởi tạo cấu trúc Full-stack Monorepo (Frontend Vite/React PWA + Backend NestJS + Mongoose setup).
+- [x] **Task 1.1**: Khởi tạo cấu trúc Full-stack Monorepo (Frontend Vite/React PWA + Backend NestJS + Mongoose setup).
 - [ ] **Task 1.2**: Module Client-side Barcode Scanner PWA (quét camera độ trễ < 200ms, hỗ trợ EAN-13, UPC).
 - [ ] **Task 1.3**: AI Retrieval Service (NestJS + Gemini Flash + Search/Fetch Scraper) bóc tách Barcode thành Structured JSON chuẩn hóa.
 - [ ] **Task 1.4**: Tích hợp luồng quét sản phẩm thực tế: Camera Scan -> Backend Agent -> Modal xem trước xác nhận sản phẩm trong 3s.
