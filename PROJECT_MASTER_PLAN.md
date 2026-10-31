@@ -35,7 +35,7 @@
 #### PHA 2: HAI TẦNG DATABASE & QUẢN LÝ KHO (CRUD) (Tuần 4 - 6)
 - [x] **Task 2.1**: Thiết kế Schema Mongoose 2 tầng: `MasterCatalog` (dữ liệu chung) & `StoreInventory` (kho riêng từng cửa hàng).
 - [x] **Task 2.2**: API & Giao diện Quản lý Kho hoàn chỉnh (Danh sách tồn kho, Nhập/Xuất kho, Tìm kiếm, Lọc theo vị trí kệ hàng).
-- [ ] **Task 2.3**: Vision Fallback: Module chụp ảnh bao bì khi quét mã vạch không ra thông tin (Gemini Vision OCR bóc tách thông số).
+- [x] **Task 2.3**: Vision Fallback: Module chụp ảnh bao bì khi quét mã vạch không ra thông tin (Gemini Vision OCR bóc tách thông số).
 
 #### PHA 3: HỆ SINH THÁI AI QUẢN TRỊ & TỐI ƯU VẬN HÀNH (Tuần 7 - 10)
 - [ ] **Task 3.1**: Smart Pricing Agent: Khuyến nghị biên lợi nhuận và giá bán lẻ theo giá vốn và giá thị trường TMĐT.
