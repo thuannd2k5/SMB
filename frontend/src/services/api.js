@@ -66,3 +66,13 @@ export const getInventoryHealth = async (storeId = 'store-001') => {
     params: { storeId },
   });
 };
+
+export const getReorderDrafts = async (storeId = 'store-001') => {
+  return await apiClient.get('/inventory/reorder/drafts', {
+    params: { storeId },
+  });
+};
+
+export const regenerateCustomReorderPrompt = async (payload) => {
+  return await apiClient.post('/inventory/reorder/custom-prompt', payload);
+};

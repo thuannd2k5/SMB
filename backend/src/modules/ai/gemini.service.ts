@@ -330,4 +330,62 @@ Hãy đưa ra 1 gợi ý xả hàng thu hồi vốn ngắn gọn trong 1-2 câu 
       return fallback;
     }
   }
+
+  /**
+   * Tự động sinh nội dung tin nhắn Zalo gửi Nhà Cung Cấp bằng Gemini Flash
+   */
+  async generateZaloReorderMessage(params: {
+    supplierName: string;
+    storeName?: string;
+    items: Array<{ name: string; quantity: number; unit?: string }>;
+    customPrompt?: string;
+    expectedDeliveryTime?: string;
+  }): Promise<string> {
+    const {
+      supplierName,
+      storeName = 'tiệm Gia Dụng Mai Loan',
+      items,
+      customPrompt,
+      expectedDeliveryTime = 'sớm nhất có thể (trước 10h sáng mai)',
+    } = params;
+
+    const itemsText = items
+      .map((it, idx) => `${idx + 1}. ${it.name}: ${it.quantity} ${it.unit || 'Cái'}`)
+      .join('\n');
+
+    const fallback = `Chào anh/chị ${supplierName}, bên em ${storeName} gửi đơn bổ sung hàng đợt này:\n${itemsText}\nAnh/chị giữ giá chiết khấu cũ và giao giúp em ${expectedDeliveryTime} nhé. Em cảm ơn!`;
+
+    if (!this.ai) {
+      return fallback;
+    }
+
+    try {
+      const prompt = `Bạn là trợ lý ảo hỗ trợ chủ cửa hàng gia dụng SMB Việt Nam soạn tin nhắn Zalo gửi Nhà Phân Phối / Đại lý để đặt hàng bổ sung kho.
+Thông tin đơn hàng:
+- Tên Nhà Phân Phối: "${supplierName}"
+- Tên cửa hàng bán lẻ: "${storeName}"
+- Danh sách mặt hàng cần nhập:
+${itemsText}
+- Thời gian giao hàng mong muốn: "${expectedDeliveryTime}"
+${customPrompt ? `- Yêu cầu đặc biệt của chủ quán: "${customPrompt}"` : ''}
+
+Quy tắc viết tin nhắn:
+- Giọng điệu thân thiện, lịch sự, đúng phong cách giao thương bán lẻ Việt Nam (gọi anh/chị nhà cung cấp, xưng em bên tiệm).
+- Liệt kê các món đánh số thứ tự 1., 2., ... rõ ràng kèm số lượng và đơn vị.
+- Lồng ghép khéo léo yêu cầu đặc biệt (nếu có, ví dụ chiết khấu hoặc giờ giao cụ thể).
+- Kết bài lịch sự cảm ơn.
+- Không dùng Markdown in đậm hoa mỹ (**), viết dạng text thuần phù hợp copy dán trực tiếp vào khung chat Zalo.`;
+
+      const response = await this.ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: prompt,
+      });
+
+      const text = response.text ? response.text.trim() : '';
+      return text.length > 20 ? text : fallback;
+    } catch (err: any) {
+      this.logger.warn(`Failed to generate Gemini Zalo reorder message: ${err.message}`);
+      return fallback;
+    }
+  }
 }

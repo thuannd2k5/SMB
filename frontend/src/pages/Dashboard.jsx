@@ -17,10 +17,12 @@ import {
   ShoppingBag,
 } from 'lucide-react';
 import { getInventoryHealth } from '../services/api';
+import ReorderSupplierModal from '../components/ReorderSupplierModal';
 
 export default function Dashboard({ healthData, isChecking, backendStatus, onNavigate }) {
   const [healthAnalytics, setHealthAnalytics] = useState(null);
   const [isLoadingAnalytics, setIsLoadingAnalytics] = useState(true);
+  const [isReorderModalOpen, setIsReorderModalOpen] = useState(false);
 
   const fetchAnalytics = useCallback(async () => {
     setIsLoadingAnalytics(true);
@@ -328,6 +330,16 @@ export default function Dashboard({ healthData, isChecking, backendStatus, onNav
             ))}
           </div>
         )}
+
+        {/* 1-Touch Zalo Supplier Reorder Action Button */}
+        <button
+          onClick={() => setIsReorderModalOpen(true)}
+          className="w-full mt-1 bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-700 hover:to-indigo-800 active:scale-98 text-white font-bold text-xs py-2.5 px-3.5 rounded-xl shadow-md shadow-blue-200 transition-all flex items-center justify-center gap-2"
+        >
+          <Package className="w-4 h-4" />
+          <span>📦 Soạn đơn đặt hàng Zalo (1 Chạm)</span>
+          <ArrowRight className="w-3.5 h-3.5 ml-auto opacity-80" />
+        </button>
       </div>
 
       {/* KHỐI 3: TRỢ LÝ XẢ HÀNG ĐỌNG VỐN (DEAD STOCK LIQUIDATION) */}
@@ -426,6 +438,12 @@ export default function Dashboard({ healthData, isChecking, backendStatus, onNav
           </li>
         </ul>
       </div>
+
+      {/* Supplier Re-ordering Zalo 1-Touch Modal */}
+      <ReorderSupplierModal
+        isOpen={isReorderModalOpen}
+        onClose={() => setIsReorderModalOpen(false)}
+      />
     </div>
   );
 }

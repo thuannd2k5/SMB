@@ -3,6 +3,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { InventoryController } from './inventory.controller';
 import { InventoryService } from './inventory.service';
 import { InventoryAnalyticsService } from './inventory-analytics.service';
+import { SupplierReorderService } from './supplier-reorder.service';
 import {
   StoreInventory,
   StoreInventorySchema,
@@ -19,7 +20,7 @@ import { AiModule } from '../ai/ai.module';
     AiModule,
   ],
   controllers: [InventoryController],
-  providers: [InventoryService, InventoryAnalyticsService],
-  exports: [InventoryService, InventoryAnalyticsService, MongooseModule],
+  providers: [InventoryService, InventoryAnalyticsService, SupplierReorderService],
+  exports: [InventoryService, InventoryAnalyticsService, SupplierReorderService, MongooseModule],
 })
 export class InventoryModule {}

@@ -25,6 +25,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import { getInventoryItems, adjustStock, getSmartPricing, inboundInventory } from '../services/api';
+import ReorderSupplierModal from '../components/ReorderSupplierModal';
 
 export default function InventoryPage({ onNavigate }) {
   const [items, setItems] = useState([]);
@@ -34,6 +35,7 @@ export default function InventoryPage({ onNavigate }) {
   const [expandedId, setExpandedId] = useState(null);
   const [toastMessage, setToastMessage] = useState(null);
   const [actionLoadingId, setActionLoadingId] = useState(null);
+  const [isReorderModalOpen, setIsReorderModalOpen] = useState(false);
 
   // Reprice Agent Modal state (Task 3.1)
   const [repriceItem, setRepriceItem] = useState(null);
@@ -275,6 +277,21 @@ export default function InventoryPage({ onNavigate }) {
           <span className="text-[9px] text-slate-400">Tồn &le; 5 cái</span>
         </div>
       </div>
+
+      {/* Quick Zalo Reorder Action Banner */}
+      <button
+        type="button"
+        onClick={() => setIsReorderModalOpen(true)}
+        className="w-full bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-700 hover:to-indigo-800 active:scale-98 text-white font-bold text-xs py-2.5 px-3.5 rounded-2xl shadow-sm transition-all flex items-center justify-between"
+      >
+        <div className="flex items-center gap-2">
+          <Package className="w-4 h-4 text-blue-200" />
+          <span>📦 Soạn đơn đặt hàng Zalo (1 Chạm)</span>
+        </div>
+        <span className="text-[10px] font-semibold bg-white/20 text-white px-2 py-0.5 rounded-full">
+          Mở đơn nháp &rarr;
+        </span>
+      </button>
 
       {/* 2. Search & Filter Bar */}
       <div className="bg-white rounded-2xl p-3 shadow-sm border border-slate-200 space-y-2.5">
@@ -726,6 +743,12 @@ export default function InventoryPage({ onNavigate }) {
           </div>
         </div>
       )}
+
+      {/* Supplier Re-ordering Zalo 1-Touch Modal */}
+      <ReorderSupplierModal
+        isOpen={isReorderModalOpen}
+        onClose={() => setIsReorderModalOpen(false)}
+      />
     </div>
   );
 }

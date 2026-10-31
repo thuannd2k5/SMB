@@ -7,14 +7,17 @@ import {
 } from '@nestjs/common';
 import { InventoryService } from './inventory.service';
 import { InventoryAnalyticsService } from './inventory-analytics.service';
+import { SupplierReorderService } from './supplier-reorder.service';
 import { InboundInventoryDto } from './dto/inbound-inventory.dto';
 import { AdjustStockDto } from './dto/adjust-stock.dto';
+import { CustomReorderPromptDto } from './dto/custom-reorder-prompt.dto';
 
 @Controller('inventory')
 export class InventoryController {
   constructor(
     private readonly inventoryService: InventoryService,
     private readonly inventoryAnalyticsService: InventoryAnalyticsService,
+    private readonly supplierReorderService: SupplierReorderService,
   ) {}
 
   @Get('items')
@@ -46,6 +49,16 @@ export class InventoryController {
   @Get('analytics/health')
   getInventoryHealth(@Query('storeId') storeId?: string) {
     return this.inventoryAnalyticsService.getInventoryHealth(storeId || 'store-001');
+  }
+
+  @Get('reorder/drafts')
+  getReorderDrafts(@Query('storeId') storeId?: string) {
+    return this.supplierReorderService.getReorderDrafts(storeId || 'store-001');
+  }
+
+  @Post('reorder/custom-prompt')
+  regenerateCustomPrompt(@Body() dto: CustomReorderPromptDto) {
+    return this.supplierReorderService.regenerateCustomZaloMessage(dto);
   }
 
   @Post('inbound')
