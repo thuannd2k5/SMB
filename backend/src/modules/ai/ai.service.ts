@@ -225,9 +225,8 @@ export class AiService {
    */
   async searchWebForBarcode(barcode: string): Promise<string> {
     try {
-      const searchUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(
-        barcode + ' đồ gia dụng thông số',
-      )}`;
+      const query = `"${barcode}" thông tin sản phẩm`;
+      const searchUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
 
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 4000);
@@ -278,7 +277,7 @@ export class AiService {
 
     // 1. CACHE-FIRST: Kiểm tra Master Catalog trước tiên ($0 cost, < 50ms)
     const cachedItem = await this.catalogService.findByBarcode(cleanBarcode);
-    if (cachedItem) {
+    if (cachedItem && cachedItem.name && !cachedItem.name.startsWith('Sản phẩm mới')) {
       const latency = Date.now() - startTime;
       this.logger.log(`⚡ CACHE HIT for [${cleanBarcode}] (${latency}ms) - Returning from Master Catalog`);
       return {
@@ -305,52 +304,61 @@ export class AiService {
       try {
         const webSnippet = await this.searchWebForBarcode(cleanBarcode);
         const snippetToUse =
-          webSnippet.length > 20
+          webSnippet && webSnippet.length > 20
             ? webSnippet
-            : `Mã barcode ${cleanBarcode} tại cửa hàng gia dụng Việt Nam. Tra cứu thông số sản phẩm tiêu chuẩn.`;
+            : `Mã barcode ${cleanBarcode}: Không tìm thấy thông tin trên internet.`;
 
         const extracted = await this.geminiService.extractProductFromSearch(
           snippetToUse,
           cleanBarcode,
         );
 
-        if (extracted && extracted.name) {
+        if (
+          extracted &&
+          extracted.found !== false &&
+          extracted.name &&
+          extracted.name.trim() !== '' &&
+          !extracted.name.toLowerCase().includes('không tìm thấy')
+        ) {
           productResult = {
             barcode: cleanBarcode,
-            name: extracted.name,
-            brand: extracted.brand || 'Gia dụng Việt Nam',
-            category: extracted.category || 'Điện gia dụng',
-            unit: extracted.unit || 'Cái',
+            name: extracted.name.trim(),
+            brand: extracted.brand?.trim() || '',
+            category: extracted.category?.trim() || 'Chưa phân loại',
+            unit: extracted.unit?.trim() || 'Cái',
             specs: extracted.specs || {},
-            suggestedRetailPriceMin: extracted.suggestedRetailPriceMin || 100000,
-            suggestedRetailPriceMax: extracted.suggestedRetailPriceMax || 150000,
+            suggestedRetailPriceMin: extracted.suggestedRetailPriceMin || 0,
+            suggestedRetailPriceMax: extracted.suggestedRetailPriceMax || 0,
             source: 'AI_RETRIEVED',
             metadata: {
-              searchSnippetFound: webSnippet.length > 20,
+              searchSnippetFound: webSnippet && webSnippet.length > 20,
               provider: 'gemini-3.5-flash',
               latencyMs: Date.now() - startTime,
             },
           };
         }
       } catch (err: any) {
-        this.logger.warn(`Gemini live extraction error: ${err.message}. Falling back to simulation.`);
+        this.logger.warn(`Gemini live extraction error: ${err.message}.`);
       }
     }
 
-    // 3. FALLBACK: Dùng dữ liệu giả lập chuẩn xác nếu AI chưa cấu hình key
+    // 3. FALLBACK: Khi không tìm thấy trên mạng hoặc AI chưa có kết quả
     if (!productResult) {
       productResult = this.getFallbackProduct(cleanBarcode);
       productResult.metadata = {
+        searchSnippetFound: false,
         latencyMs: Date.now() - startTime,
       };
     }
 
-    // 4. AUTO-CACHE: Tự động lưu bản ghi mới vào Master Catalog cho các lần tra cứu sau
-    try {
-      await this.catalogService.upsertProduct(productResult, productResult.source);
-      this.logger.log(`💾 Auto-saved [${cleanBarcode}] into Master Catalog`);
-    } catch (err: any) {
-      this.logger.warn(`Failed to auto-cache [${cleanBarcode}]: ${err.message}`);
+    // 4. AUTO-CACHE: Chỉ tự động lưu nếu thực sự tìm thấy thông tin sản phẩm hợp lệ từ AI
+    if (productResult.source !== 'MOCK_FALLBACK' && productResult.category !== 'Chưa phân loại') {
+      try {
+        await this.catalogService.upsertProduct(productResult, productResult.source);
+        this.logger.log(`💾 Auto-saved [${cleanBarcode}] into Master Catalog`);
+      } catch (err: any) {
+        this.logger.warn(`Failed to auto-cache [${cleanBarcode}]: ${err.message}`);
+      }
     }
 
     return productResult;
@@ -449,18 +457,14 @@ export class AiService {
 
     return {
       barcode,
-      name: `Sản phẩm Gia dụng Mã ${barcode}`,
-      brand: 'Gia dụng SMB',
-      category: 'Điện gia dụng',
-      unit: 'Chiếc',
-      specs: {
-        power: '1000W',
-        material: 'Nhựa ABS & Kim loại',
-        origin: 'Việt Nam',
-      },
-      suggestedRetailPriceMin: 120000,
-      suggestedRetailPriceMax: 160000,
-      source: 'AI_RETRIEVED',
+      name: `Sản phẩm mới (${barcode})`,
+      brand: '',
+      category: 'Chưa phân loại',
+      unit: 'Cái',
+      specs: {},
+      suggestedRetailPriceMin: 0,
+      suggestedRetailPriceMax: 0,
+      source: 'MOCK_FALLBACK',
     };
   }
 }

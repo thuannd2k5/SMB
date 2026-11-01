@@ -8,12 +8,12 @@ import {
   MapPin,
   Tag,
   PackageCheck,
-  Edit2,
   TrendingUp,
   Loader2,
   Check,
   ArrowRight,
   ShieldCheck,
+  Info,
 } from 'lucide-react';
 import { getSmartPricing } from '../services/api';
 
@@ -25,11 +25,13 @@ export default function ProductPreviewModal({
   isSaving = false,
 }) {
   const [productName, setProductName] = useState('');
+  const [brand, setBrand] = useState('');
+  const [category, setCategory] = useState('');
+  const [unit, setUnit] = useState('Cái');
   const [quantity, setQuantity] = useState(10);
   const [costPrice, setCostPrice] = useState(120000);
   const [retailPrice, setRetailPrice] = useState(165000);
   const [shelfLocation, setShelfLocation] = useState('Kệ A1');
-  const [isEditingName, setIsEditingName] = useState(false);
 
   // Smart Pricing Agent states
   const [smartPricing, setSmartPricing] = useState(null);
@@ -41,22 +43,30 @@ export default function ProductPreviewModal({
     if (productData) {
       const name = productData.name || '';
       setProductName(name);
-      const min = productData.suggestedRetailPriceMin || 100000;
-      const max = productData.suggestedRetailPriceMax || 150000;
-      const avg = Math.round((min + max) / 2 / 1000) * 1000;
-      setRetailPrice(avg);
+      setBrand(productData.brand || '');
+      setCategory(
+        productData.category && productData.category !== 'Chưa phân loại'
+          ? productData.category
+          : ''
+      );
+      setUnit(productData.unit || 'Cái');
+
+      const min = productData.suggestedRetailPriceMin || 0;
+      const max = productData.suggestedRetailPriceMax || 0;
+      const avg = min > 0 && max > 0 ? Math.round((min + max) / 2 / 1000) * 1000 : 0;
+      setRetailPrice(avg > 0 ? avg : 50000);
 
       // Reasonable estimated wholesale cost around 70-75% of retail price
-      const estimatedCost = Math.round((avg * 0.72) / 1000) * 1000;
+      const estimatedCost = avg > 0 ? Math.round((avg * 0.72) / 1000) * 1000 : 35000;
       setCostPrice(estimatedCost);
       setQuantity(10);
       setShelfLocation('Kệ A1');
-      setIsEditingName(false);
       setSmartPricing(null);
       setAppliedSmartPrice(false);
 
-      // Auto trigger initial smart pricing
-      fetchPricing(name, estimatedCost, productData.barcode, productData.category);
+      if (estimatedCost > 0) {
+        fetchPricing(name, estimatedCost, productData.barcode, productData.category);
+      }
     }
   }, [productData]);
 
@@ -68,7 +78,7 @@ export default function ProductPreviewModal({
         productName: pName || productName,
         costPrice: cost,
         barcode: bCode || productData?.barcode,
-        category: cat || productData?.category,
+        category: cat || category || productData?.category,
       });
       const data = res?.data || res;
       if (data && data.recommendedPrice) {
@@ -82,6 +92,12 @@ export default function ProductPreviewModal({
   };
 
   if (!isOpen || !productData) return null;
+
+  const isNewProduct =
+    productData?.source === 'MOCK_FALLBACK' ||
+    !productData?.name ||
+    productData?.category === 'Chưa phân loại' ||
+    (productData?.name && productData.name.startsWith('Sản phẩm mới'));
 
   const quickShelves = ['Kệ A1', 'Kệ A2', 'Kệ B1', 'Kệ B2', 'Tủ C3'];
 
@@ -110,22 +126,22 @@ export default function ProductPreviewModal({
     const inboundPayload = {
       barcode: productData.barcode,
       productData: {
-        name: productName,
-        brand: productData.brand || '',
-        category: productData.category || 'Khác',
-        unit: productData.unit || 'Cái',
+        name: productName.trim() || `Sản phẩm ${productData.barcode}`,
+        brand: brand.trim(),
+        category: category.trim() || 'Chưa phân loại',
+        unit: unit.trim() || 'Cái',
         specs: productData.specs || {},
-        suggestedRetailPriceMin: productData.suggestedRetailPriceMin,
-        suggestedRetailPriceMax: productData.suggestedRetailPriceMax,
+        suggestedRetailPriceMin: productData.suggestedRetailPriceMin || 0,
+        suggestedRetailPriceMax: productData.suggestedRetailPriceMax || 0,
       },
       inventoryData: {
         stockQuantity: quantity,
         costPrice,
         retailPrice,
         shelfLocation,
-        supplierName: productData.brand
-          ? `NPP ${productData.brand}`
-          : 'Đại lý phân phối gia dụng',
+        supplierName: brand.trim()
+          ? `NPP ${brand.trim()}`
+          : 'Đại lý phân phối',
         storeId: 'store-001',
       },
     };
@@ -154,16 +170,28 @@ export default function ProductPreviewModal({
         <div className="px-5 py-3 border-b border-slate-100 flex items-start justify-between">
           <div>
             <div className="flex items-center gap-1.5 flex-wrap">
-              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
-                <Sparkles className="w-3 h-3 text-indigo-600" />
-                <span>AI Auto-Filled</span>
-              </span>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-700">
-                {productData.category || 'Gia dụng'}
-              </span>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
-                {productData.brand || 'Việt Nam'}
-              </span>
+              {isNewProduct ? (
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-300">
+                  <Tag className="w-3 h-3 text-amber-600" />
+                  <span>Sản phẩm mới</span>
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                  <Sparkles className="w-3 h-3 text-indigo-600" />
+                  <span>AI Auto-Filled</span>
+                </span>
+              )}
+
+              {category && (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-700">
+                  {category}
+                </span>
+              )}
+              {brand && (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  {brand}
+                </span>
+              )}
             </div>
             <p className="text-[11px] font-mono text-slate-400 mt-1">
               Barcode: {productData.barcode}
@@ -180,37 +208,40 @@ export default function ProductPreviewModal({
         </div>
 
         {/* Scrollable Body Form */}
-        <div className="px-5 py-4 overflow-y-auto space-y-4 text-slate-800">
+        <div className="px-5 py-4 overflow-y-auto space-y-3.5 text-slate-800">
+          {/* Friendly tip banner for new/unindexed products */}
+          {isNewProduct && (
+            <div className="bg-amber-50 border border-amber-300 rounded-2xl p-3 flex items-start gap-2.5 text-xs text-amber-900 shadow-2xs">
+              <Info className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-bold text-amber-950">Chưa có thông tin trên mạng</p>
+                <p className="text-[11px] text-amber-800 mt-0.5 leading-relaxed">
+                  Vui lòng điền tên và giá để lưu vào danh mục. Hệ thống sẽ tự động lưu lại cho các lần quét sau.
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Editable Product Name Card */}
-          <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80">
-            <div className="flex items-center justify-between text-[11px] text-slate-500 font-semibold mb-1">
+          <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80 space-y-1.5">
+            <div className="flex items-center justify-between text-[11px] text-slate-500 font-bold uppercase">
               <span>TÊN SẢN PHẨM</span>
-              <button
-                type="button"
-                onClick={() => setIsEditingName(!isEditingName)}
-                className="text-indigo-600 hover:text-indigo-700 flex items-center gap-1"
-              >
-                <Edit2 className="w-3 h-3" />
-                <span>{isEditingName ? 'Xong' : 'Sửa'}</span>
-              </button>
+              {isNewProduct && (
+                <span className="text-[10px] text-amber-600 font-semibold">Cần điền</span>
+              )}
             </div>
 
-            {isEditingName ? (
-              <input
-                type="text"
-                value={productName}
-                onChange={(e) => setProductName(e.target.value)}
-                className="w-full bg-white border border-indigo-400 rounded-xl p-2 text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-            ) : (
-              <h3 className="text-sm font-bold text-slate-900 leading-snug">
-                {productName}
-              </h3>
-            )}
+            <input
+              type="text"
+              value={productName}
+              onChange={(e) => setProductName(e.target.value)}
+              placeholder="VD: Vở kẻ ngang 200 trang, Bánh Oreo, Chảo Sunhouse..."
+              className="w-full bg-white border border-slate-200 focus:border-indigo-500 rounded-xl p-2.5 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+            />
 
             {/* Specs Pills */}
             {specsList.length > 0 && (
-              <div className="mt-2.5 flex flex-wrap gap-1.5">
+              <div className="pt-1 flex flex-wrap gap-1.5">
                 {specsList.map(([key, val]) => (
                   <span
                     key={key}
@@ -219,38 +250,83 @@ export default function ProductPreviewModal({
                     {val}
                   </span>
                 ))}
-                <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-medium bg-indigo-50 text-indigo-700">
-                  ĐVT: {productData.unit || 'Cái'}
-                </span>
               </div>
             )}
           </div>
 
-          {/* Market Price Range Card */}
-          <div className="bg-gradient-to-r from-amber-50 to-orange-50 p-3 rounded-2xl border border-amber-200/60 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
-                <Tag className="w-4 h-4" />
-              </div>
-              <div>
-                <p className="text-[10px] font-semibold text-amber-800 uppercase">
-                  Giá thị trường tham khảo (TMĐT)
-                </p>
-                <p className="text-xs font-bold text-amber-950 mt-0.5">
-                  {formatVND(
-                    smartPricing?.marketRange?.min || productData.suggestedRetailPriceMin
-                  )}{' '}
-                  -{' '}
-                  {formatVND(
-                    smartPricing?.marketRange?.max || productData.suggestedRetailPriceMax
-                  )}
-                </p>
-              </div>
+          {/* Brand & Category Grid */}
+          <div className="grid grid-cols-2 gap-2.5">
+            <div className="bg-slate-50 p-2.5 rounded-2xl border border-slate-200/80 space-y-1">
+              <label className="text-[10px] font-bold text-slate-500 uppercase block">
+                Thương hiệu
+              </label>
+              <input
+                type="text"
+                value={brand}
+                onChange={(e) => setBrand(e.target.value)}
+                placeholder="VD: Hồng Hà, Sunhouse..."
+                className="w-full bg-white border border-slate-200 focus:border-indigo-500 rounded-xl p-2 text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+              />
             </div>
-            <span className="text-[10px] bg-amber-200/60 text-amber-900 px-2 py-0.5 rounded-md font-medium">
-              Shopee/Tiki
-            </span>
+
+            <div className="bg-slate-50 p-2.5 rounded-2xl border border-slate-200/80 space-y-1">
+              <label className="text-[10px] font-bold text-slate-500 uppercase block">
+                Ngành hàng
+              </label>
+              <input
+                type="text"
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                placeholder="VD: Văn phòng phẩm, Bánh kẹo..."
+                className="w-full bg-white border border-slate-200 focus:border-indigo-500 rounded-xl p-2 text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+              />
+            </div>
           </div>
+
+          {/* Unit selection */}
+          <div className="bg-slate-50 p-2.5 rounded-2xl border border-slate-200/80 flex items-center justify-between">
+            <div>
+              <span className="text-[10px] font-bold text-slate-500 uppercase block">
+                Đơn vị tính (ĐVT)
+              </span>
+              <span className="text-[10px] text-slate-400">Cái, Quyển, Cuốn, Hộp, Gói...</span>
+            </div>
+            <input
+              type="text"
+              value={unit}
+              onChange={(e) => setUnit(e.target.value)}
+              placeholder="Cái"
+              className="w-24 bg-white border border-slate-200 focus:border-indigo-500 rounded-xl p-1.5 text-xs text-center font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+            />
+          </div>
+
+          {/* Market Price Range Card (when available) */}
+          {(smartPricing?.marketRange?.max > 0 || productData.suggestedRetailPriceMax > 0) && (
+            <div className="bg-gradient-to-r from-amber-50 to-orange-50 p-3 rounded-2xl border border-amber-200/60 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
+                  <Tag className="w-4 h-4" />
+                </div>
+                <div>
+                  <p className="text-[10px] font-semibold text-amber-800 uppercase">
+                    Giá thị trường tham khảo (TMĐT)
+                  </p>
+                  <p className="text-xs font-bold text-amber-950 mt-0.5">
+                    {formatVND(
+                      smartPricing?.marketRange?.min || productData.suggestedRetailPriceMin
+                    )}{' '}
+                    -{' '}
+                    {formatVND(
+                      smartPricing?.marketRange?.max || productData.suggestedRetailPriceMax
+                    )}
+                  </p>
+                </div>
+              </div>
+              <span className="text-[10px] bg-amber-200/60 text-amber-900 px-2 py-0.5 rounded-md font-medium">
+                Tham khảo
+              </span>
+            </div>
+          )}
 
           {/* Quick Ingestion Section */}
           <div className="space-y-3 pt-1">
@@ -493,7 +569,7 @@ export default function ProductPreviewModal({
             ) : (
               <>
                 <CheckCircle2 className="w-5 h-5" />
-                <span>Xác nhận Lưu kho (+{quantity} {productData.unit || 'Cái'})</span>
+                <span>Xác nhận Lưu kho (+{quantity} {unit || 'Cái'})</span>
               </>
             )}
           </button>

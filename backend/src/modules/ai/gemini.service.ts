@@ -3,11 +3,12 @@ import { ConfigService } from '@nestjs/config';
 import { GoogleGenAI, Type } from '@google/genai';
 
 export interface ExtractedProduct {
+  found?: boolean;
   barcode?: string;
-  name: string;
+  name?: string;
   brand?: string;
-  category: string;
-  unit: string;
+  category?: string;
+  unit?: string;
   specs?: Record<string, any>;
   suggestedRetailPriceMin?: number;
   suggestedRetailPriceMax?: number;
@@ -42,7 +43,7 @@ export class GeminiService {
   }
 
   /**
-   * Bóc tách thông tin sản phẩm gia dụng từ raw text tìm kiếm bằng Structured Output
+   * Bóc tách thông tin sản phẩm từ raw text tìm kiếm bằng Structured Output
    */
   async extractProductFromSearch(
     rawSnippet: string,
@@ -52,13 +53,33 @@ export class GeminiService {
       throw new Error('Gemini SDK is not configured with a valid API key');
     }
 
-    const prompt = `Bạn là chuyên gia thẩm định và phân loại hàng gia dụng SMB Việt Nam.
+    const prompt = `Bạn là chuyên gia bóc tách sản phẩm bán lẻ tiêu dùng Việt Nam.
 Dưới đây là thông tin cào được từ internet cho mã vạch barcode: "${barcode}".
 Nội dung nguồn:
 """
 ${rawSnippet}
 """
-Hãy bóc tách thành thông tin sản phẩm chuẩn mực, có thương hiệu, quy cách rõ ràng cho cửa hàng bán lẻ gia dụng tại Việt Nam.`;
+Quy tắc xử lý bắt buộc:
+1. Đọc kỹ nội dung nguồn. Nếu nội dung KHÔNG chứa thông tin sản phẩm cụ thể, hoặc là kết quả tìm kiếm rỗng, hoặc không liên quan đến mã vạch "${barcode}", bạn BẮT BUỘC phải trả về:
+   - "found": false
+   - "name": ""
+   - "brand": ""
+   - "category": "Chưa phân loại"
+   - "unit": "Cái"
+   - "specs": {}
+   - "suggestedRetailPriceMin": 0
+   - "suggestedRetailPriceMax": 0
+   TUYỆT ĐỐI KHÔNG được tự ý sáng tác, phỏng đoán hoặc gán ghép thông số giả định (như công suất, chất liệu gia dụng) nếu nội dung nguồn không có!
+
+2. Nếu nội dung nguồn xác định ĐƯỢC sản phẩm có thật (mọi ngành hàng: văn phòng phẩm, sách vở, bánh kẹo, đồ uống, thực phẩm, gia dụng, điện tử, hóa mỹ phẩm, thời trang...):
+   - "found": true
+   - "name": Tên sản phẩm chính xác, rõ ràng, có quy cách hoặc dung tích/kích thước
+   - "brand": Tên thương hiệu chuẩn (ví dụ: Hồng Hà, Thiên Long, Kinh Đô, Vinamilk, Sunhouse, Lock&Lock, Unilever...) hoặc để trống nếu không có
+   - "category": Ngành hàng chính xác (ví dụ: "Văn phòng phẩm", "Bánh kẹo & Thực phẩm", "Đồ uống", "Thiết bị nhà bếp", "Điện gia dụng", "Tiện ích & Vệ sinh", "Chăm sóc cá nhân", "Khác")
+   - "unit": Đơn vị tính phù hợp (Cuốn, Quyển, Cái, Chiếc, Gói, Hộp, Chai, Lon, Bộ, Bình...)
+   - "specs": Trích xuất các thông số thực tế có trong bài (số trang, định lượng, kích thước, dung tích, thành phần, công suất...). Chỉ ghi thông số có trong nguồn, KHÔNG bịa đặt.
+   - "suggestedRetailPriceMin": Giá bán lẻ tham khảo tối thiểu (VNĐ), 0 nếu không rõ
+   - "suggestedRetailPriceMax": Giá bán lẻ tham khảo tối đa (VNĐ), 0 nếu không rõ`;
 
     const response = await this.ai.models.generateContent({
       model: 'gemini-3.5-flash',
@@ -68,52 +89,31 @@ Hãy bóc tách thành thông tin sản phẩm chuẩn mực, có thương hiệ
         responseSchema: {
           type: Type.OBJECT,
           properties: {
+            found: {
+              type: Type.BOOLEAN,
+              description:
+                'True nếu tìm thấy thông tin sản phẩm có thực trong nguồn, False nếu không tìm thấy hoặc thông tin không đủ',
+            },
             name: {
               type: Type.STRING,
-              description: 'Tên sản phẩm chuẩn mực, có thương hiệu và quy cách',
+              description: 'Tên sản phẩm chuẩn mực, hoặc rỗng nếu không tìm thấy',
             },
             brand: {
               type: Type.STRING,
-              description:
-                'Tên thương hiệu (ví dụ: Sunhouse, Lock&Lock, Philips, Sharp, Kangaroo...)',
+              description: 'Tên thương hiệu sản phẩm',
             },
             category: {
               type: Type.STRING,
-              enum: [
-                'Thiết bị nhà bếp',
-                'Điện gia dụng',
-                'Thiết bị vệ sinh',
-                'Đồ dùng phòng khách',
-                'Khác',
-              ],
-              description: 'Phân loại ngành hàng gia dụng',
+              description:
+                'Phân loại ngành hàng (Văn phòng phẩm, Bánh kẹo & Thực phẩm, Thiết bị nhà bếp, Điện gia dụng, Tiện ích & Vệ sinh, Chăm sóc cá nhân, Khác)',
             },
             unit: {
               type: Type.STRING,
-              enum: ['Chiếc', 'Cái', 'Bộ', 'Hộp', 'Bình'],
-              description: 'Đơn vị tính cơ sở',
+              description: 'Đơn vị tính cơ sở (Cái, Cuốn, Quyển, Gói, Hộp, Chai, Bộ...)',
             },
             specs: {
               type: Type.OBJECT,
-              description: 'Các thông số kỹ thuật dạng key-value linh hoạt',
-              properties: {
-                power: {
-                  type: Type.STRING,
-                  description: 'Công suất (ví dụ: 1800W, 2200W)',
-                },
-                capacity: {
-                  type: Type.STRING,
-                  description: 'Dung tích (ví dụ: 1.8L, 500ml)',
-                },
-                material: {
-                  type: Type.STRING,
-                  description: 'Chất liệu (ví dụ: Inox 304, Nhôm chống dính, Thủy tinh)',
-                },
-                size: {
-                  type: Type.STRING,
-                  description: 'Kích cỡ hoặc đường kính (ví dụ: 26cm, 35x20cm)',
-                },
-              },
+              description: 'Các thông số thực tế dạng key-value',
             },
             suggestedRetailPriceMin: {
               type: Type.NUMBER,
@@ -124,7 +124,7 @@ Hãy bóc tách thành thông tin sản phẩm chuẩn mực, có thương hiệ
               description: 'Giá bán lẻ tối đa ước tính (VNĐ)',
             },
           },
-          required: ['name', 'category', 'unit'],
+          required: ['found', 'name', 'category', 'unit'],
         },
       },
     });
@@ -147,8 +147,8 @@ Hãy bóc tách thành thông tin sản phẩm chuẩn mực, có thương hiệ
     // Strip header prefix if data URI format
     const cleanBase64 = imageBase64.replace(/^data:image\/[a-z]+;base64,/, '');
 
-    const prompt = `Bạn là chuyên gia phân tích hàng gia dụng SMB Việt Nam.
-Hãy đọc toàn bộ nhãn mác OCR, logo thương hiệu, tên gọi và thông số kỹ thuật (công suất, kích thước, dung tích, chất liệu) trên bao bì/mặt trước sản phẩm này và trích xuất thành JSON chuẩn.
+    const prompt = `Bạn là chuyên gia phân tích và bóc tách bao bì sản phẩm tiêu dùng bán lẻ tại Việt Nam.
+Hãy đọc toàn bộ nhãn mác OCR, logo thương hiệu, tên gọi và thông số kỹ thuật (kích thước, dung tích, chất liệu, công suất, số lượng...) trên bao bì/mặt trước sản phẩm này và trích xuất thành JSON chuẩn.
 Nếu trên bao bì có in mã vạch (dãy số barcode), hãy đọc chính xác vào trường "barcode". Nếu không tìm thấy mã vạch, hãy để trống trường barcode.`;
 
     const response = await this.ai.models.generateContent({
@@ -177,34 +177,20 @@ Nếu trên bao bì có in mã vạch (dãy số barcode), hãy đọc chính x�
             },
             brand: {
               type: Type.STRING,
-              description:
-                'Tên thương hiệu (ví dụ: Fivestar, Sunhouse, Lock&Lock, Elmich, Philips...)',
+              description: 'Tên thương hiệu sản phẩm',
             },
             category: {
               type: Type.STRING,
-              enum: [
-                'Thiết bị nhà bếp',
-                'Điện gia dụng',
-                'Thiết bị vệ sinh',
-                'Đồ dùng phòng khách',
-                'Khác',
-              ],
-              description: 'Phân loại ngành hàng gia dụng',
+              description:
+                'Phân loại ngành hàng (Văn phòng phẩm, Bánh kẹo & Thực phẩm, Thiết bị nhà bếp, Điện gia dụng, Tiện ích & Vệ sinh, Chăm sóc cá nhân, Khác)',
             },
             unit: {
               type: Type.STRING,
-              enum: ['Bộ', 'Chiếc', 'Cái', 'Hộp', 'Bình'],
-              description: 'Đơn vị tính cơ sở',
+              description: 'Đơn vị tính cơ sở (Cái, Cuốn, Quyển, Hộp, Gói, Chai, Bộ...)',
             },
             specs: {
               type: Type.OBJECT,
               description: 'Các thông số kỹ thuật dạng key-value linh hoạt',
-              properties: {
-                power: { type: Type.STRING, description: 'Công suất (ví dụ: 1800W)' },
-                capacity: { type: Type.STRING, description: 'Dung tích (ví dụ: 1.8L)' },
-                material: { type: Type.STRING, description: 'Chất liệu (ví dụ: Inox 430, Nhôm chống dính, Thủy tinh)' },
-                size: { type: Type.STRING, description: 'Kích cỡ hoặc đường kính (ví dụ: 16-20-24cm)' },
-              },
             },
             suggestedRetailPriceMin: {
               type: Type.NUMBER,

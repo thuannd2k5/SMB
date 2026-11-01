@@ -183,16 +183,16 @@ export default function ScannerPage({ onNavigate }) {
       });
     } catch (err) {
       console.warn('AI retrieval error:', err.message);
-      // Safe fallback: open modal with standard schema so owner is never blocked
+      // Safe fallback: open modal so user can fill in name and price
       const fallbackProduct = {
         barcode: cleanCode,
-        name: `Sản phẩm Gia dụng Mã ${cleanCode}`,
-        brand: 'Gia dụng SMB',
-        category: 'Điện gia dụng',
+        name: `Sản phẩm mới (${cleanCode})`,
+        brand: '',
+        category: 'Chưa phân loại',
         unit: 'Cái',
-        specs: { origin: 'Việt Nam' },
-        suggestedRetailPriceMin: 120000,
-        suggestedRetailPriceMax: 160000,
+        specs: {},
+        suggestedRetailPriceMin: 0,
+        suggestedRetailPriceMax: 0,
         source: 'MOCK_FALLBACK',
       };
 
