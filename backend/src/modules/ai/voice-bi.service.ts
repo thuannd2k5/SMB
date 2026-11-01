@@ -333,7 +333,7 @@ export class VoiceBiService {
       try {
         const tools = this.getInventoryTools();
         const response = await this.ai.models.generateContent({
-          model: 'gemini-2.5-flash',
+          model: 'gemini-3.8-flash',
           contents: query,
           config: {
             tools,
@@ -352,7 +352,7 @@ Nhiệm vụ của bạn là lắng nghe câu hỏi của chủ tiệm và GỌI
 
           // Gửi dữ liệu kết quả ngược lại cho Gemini tổng hợp câu trả lời tự nhiên
           const secondResponse = await this.ai.models.generateContent({
-            model: 'gemini-2.5-flash',
+            model: 'gemini-3.8-flash',
             contents: [
               { role: 'user', parts: [{ text: query }] },
               { role: 'model', parts: [{ functionCall: call }] },

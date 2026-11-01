@@ -61,7 +61,7 @@ ${rawSnippet}
 Hãy bóc tách thành thông tin sản phẩm chuẩn mực, có thương hiệu, quy cách rõ ràng cho cửa hàng bán lẻ gia dụng tại Việt Nam.`;
 
     const response = await this.ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3.8-flash',
       contents: prompt,
       config: {
         responseMimeType: 'application/json',
@@ -152,7 +152,7 @@ Hãy đọc toàn bộ nhãn mác OCR, logo thương hiệu, tên gọi và thô
 Nếu trên bao bì có in mã vạch (dãy số barcode), hãy đọc chính xác vào trường "barcode". Nếu không tìm thấy mã vạch, hãy để trống trường barcode.`;
 
     const response = await this.ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3.8-flash',
       contents: [
         {
           inlineData: {
@@ -269,7 +269,7 @@ Dựa trên thông tin sản phẩm:
 Hãy đưa ra 1-2 câu nhận định ngắn gọn, súc tích (dưới 40 từ), thực tế cho chủ tiệm gia dụng giải thích vì sao mức giá này tối ưu. Không dùng gạch đầu dòng, trả về text thuần.`;
 
       const response = await this.ai.models.generateContent({
-        model: 'gemini-2.5-flash',
+        model: 'gemini-3.8-flash',
         contents: prompt,
       });
 
@@ -319,7 +319,7 @@ Sản phẩm chủ lực bán chạy hiện tại: "${bundleProduct}"
 Hãy đưa ra 1 gợi ý xả hàng thu hồi vốn ngắn gọn trong 1-2 câu (dưới 45 từ) cho chủ tiệm: Gợi ý bán kèm combo với ${bundleProduct} giảm 15-20% hoặc thanh lý giá vốn để giải phóng mặt bằng và thu hồi ${capitalMillion} triệu đồng tiền vốn. Không dùng gạch đầu dòng, trả về văn bản thuần.`;
 
       const response = await this.ai.models.generateContent({
-        model: 'gemini-2.5-flash',
+        model: 'gemini-3.8-flash',
         contents: prompt,
       });
 
@@ -377,7 +377,7 @@ Quy tắc viết tin nhắn:
 - Không dùng Markdown in đậm hoa mỹ (**), viết dạng text thuần phù hợp copy dán trực tiếp vào khung chat Zalo.`;
 
       const response = await this.ai.models.generateContent({
-        model: 'gemini-2.5-flash',
+        model: 'gemini-3.8-flash',
         contents: prompt,
       });
 
