@@ -2,6 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as compression from 'compression';
+import { json, urlencoded } from 'express';
 import { AppModule } from './app.module';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 import { AllExceptionsFilter } from './common/filters/http-exception.filter';
@@ -26,6 +27,10 @@ async function bootstrap() {
 
   const app = await NestFactory.create(AppModule);
 
+  // Increase body size limit for Vision OCR base64 camera image uploads
+  app.use(json({ limit: '25mb' }));
+  app.use(urlencoded({ extended: true, limit: '25mb' }));
+
   // Enable HTTP Gzip compression for performance optimization
   app.use(compression());
 
@@ -35,9 +40,9 @@ async function bootstrap() {
   // Global prefix: /api
   app.setGlobalPrefix('api');
 
-  // Enable CORS for frontend Vite dev server (http://localhost:5173)
+  // Enable CORS for frontend Vite dev server (localhost and mobile LAN IP)
   app.enableCors({
-    origin: ['http://localhost:5173', 'http://127.0.0.1:5173'],
+    origin: true,
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     credentials: true,
   });

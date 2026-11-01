@@ -22,6 +22,7 @@ import {
   ArrowRight,
   ShieldCheck,
   X,
+  Package,
   Loader2,
 } from 'lucide-react';
 import { getInventoryItems, adjustStock, getSmartPricing, inboundInventory } from '../services/api';
