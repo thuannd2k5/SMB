@@ -328,17 +328,17 @@ export class VoiceBiService {
   async processVoiceQuery(query: string, storeId: string = 'store-001'): Promise<VoiceQueryResponse> {
     this.logger.log(`Processing voice query: "${query}"`);
 
-    // 1. Thử gọi Gemini 2.5 Flash Function Calling nếu có AI SDK
+    // 1. Thử gọi Gemini Flash Function Calling nếu có AI SDK
     if (this.ai) {
       try {
         const tools = this.getInventoryTools();
         const response = await this.ai.models.generateContent({
-          model: 'gemini-3.8-flash',
+          model: 'gemini-3.5-flash-lite',
           contents: query,
           config: {
             tools,
             systemInstruction: `Bạn là trợ lý ảo AI thông minh, tận tâm của cửa hàng gia dụng SMB Việt Nam (tiệm Mai Loan).
-Nhiệm vụ của bạn là lắng nghe câu hỏi của chủ tiệm và GỌI CÔNG CỤ (tool) phù hợp nhất để tra cứu dữ liệu thực tế. Không tự sáng tác số liệu.`,
+Nhiệm vụ của bạn là lắng nghe câu hỏi của chủ tiệm và GỌI CÔNG CỤ (tool) phù hợp nhất để tra cứu dữ liệu thực tế. Nếu là câu hỏi thông thường ngoài phạm vi kho hàng (ví dụ chào hỏi, thời tiết), hãy trả lời lịch sự, thân thiện bằng tiếng Việt trong 1-2 câu ngắn gọn.`,
           },
         });
 
@@ -352,7 +352,7 @@ Nhiệm vụ của bạn là lắng nghe câu hỏi của chủ tiệm và GỌI
 
           // Gửi dữ liệu kết quả ngược lại cho Gemini tổng hợp câu trả lời tự nhiên
           const secondResponse = await this.ai.models.generateContent({
-            model: 'gemini-3.8-flash',
+            model: 'gemini-3.5-flash-lite',
             contents: [
               { role: 'user', parts: [{ text: query }] },
               { role: 'model', parts: [{ functionCall: call }] },
@@ -382,6 +382,13 @@ Nhiệm vụ của bạn là lắng nghe câu hỏi của chủ tiệm và GỌI
               data: toolData,
             };
           }
+        } else if (response.text && response.text.trim().length > 0) {
+          this.logger.log(`Gemini responded directly without tool call`);
+          return {
+            userQuery: query,
+            functionTriggered: 'generalChat',
+            reply: response.text.trim(),
+          };
         }
       } catch (err: any) {
         this.logger.warn(`Gemini Function Calling notice: ${err.message}. Switching to deterministic rule matching.`);

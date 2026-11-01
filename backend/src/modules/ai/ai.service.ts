@@ -214,7 +214,7 @@ export class AiService {
   getStatus() {
     return {
       geminiConfigured: this.geminiService.isConfigured(),
-      model: 'gemini-3.8-flash',
+      model: 'gemini-3.5-flash',
       readyForRetrieval: true,
       message: 'Gemini AI Retrieval Service with Master Catalog Cache is active',
     };
@@ -327,7 +327,7 @@ export class AiService {
             source: 'AI_RETRIEVED',
             metadata: {
               searchSnippetFound: webSnippet.length > 20,
-              provider: 'gemini-3.8-flash',
+              provider: 'gemini-3.5-flash',
               latencyMs: Date.now() - startTime,
             },
           };
@@ -388,7 +388,7 @@ export class AiService {
             suggestedRetailPriceMax: extracted.suggestedRetailPriceMax || 680000,
             source: 'VISION_OCR',
             metadata: {
-              provider: 'gemini-3.8-flash',
+              provider: 'gemini-3.5-flash',
               latencyMs: Date.now() - startTime,
             },
           };
